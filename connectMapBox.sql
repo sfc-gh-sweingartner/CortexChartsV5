@@ -5,16 +5,19 @@
 ---------------------------------------------------------------------------
 -- STEP 1: Set Configuration Variables
 ---------------------------------------------------------------------------
--- The only variable you need to modify is your Mapbox API key
+-- You need to modify two things:
+-- 1. Your Mapbox API key
+-- 2. Your Streamlit app's auto-generated name (you'll get this from SHOW STREAMLITS)
 SET APP_CREATOR_ROLE = 'ACCOUNTADMIN';  
 SET DB_NAME = 'CortexChartsV3';      
 SET SCHEMA_NAME = 'CortexChartsV3';    
-SET APP_NAME = 'CortexChartsV3';          
+SET APP_NAME = 'REPLACE_WITH_AUTO_GENERATED_NAME';  -- Replace this with your app's name from SHOW STREAMLITS    
 SET MAPBOX_API_KEY = 'YOUR_MAPBOX_KEY';  -- Replace with your Mapbox API key
 
 -- Get your Streamlit app identifier
 SHOW STREAMLITS;
--- Verify that you see your app named 'CortexChartsV3' in the results
+-- Look for the app with title 'CortexChartsV3' and copy its "name" (auto-generated ID)
+-- Replace the APP_NAME value above with this name
 
 ---------------------------------------------------------------------------
 -- STEP 2: Create Network Rule for Mapbox Servers
@@ -68,8 +71,8 @@ GRANT USAGE ON INTEGRATION map_access_int
 ---------------------------------------------------------------------------
 -- STEP 6: Configure Streamlit App Access
 ---------------------------------------------------------------------------
--- Find your app's identifier from the SHOW STREAMLITS results above
-ALTER STREAMLIT IDENTIFIER($DB_NAME).IDENTIFIER($SCHEMA_NAME).CortexChartsV3
+-- Use the app's auto-generated name that you set in APP_NAME above
+ALTER STREAMLIT "CortexChartsV3"."CortexChartsV3".$APP_NAME
   SET EXTERNAL_ACCESS_INTEGRATIONS = (map_access_int)
   SECRETS = ('mapbox_key' = mapbox_key);
 

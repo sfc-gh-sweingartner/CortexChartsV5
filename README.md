@@ -69,9 +69,9 @@ Before running the application, ensure you have:
 12. Choose the db CortexChartsV3 and schema CortexChartsV3
 13. Name it CortexChartsV3 (You can rename after everything is working)
 14. Choose any warehouse you want (maybe small or above) and click create
-15. Open the code editor panel and edit which yaml files (i.e. semantic model) that the solution is looking at. You will find the line to alter at line 50 of the 1_Cortex_Analyst.py file
-16. Edit the app in SiS and add the following packages via the drop down box above the code: altair, branca, h3-py, matplotlib-base, numpy, pandas, plotly, pydeck, scipy 
-17. Run the App.
+15. Open the code editor panel and edit which yaml file(s) (i.e. semantic model) that your solution is going to use.  You will find the line to alter at line 50 of the /pages/1_Cortex_Analyst.py file
+16. Add the following packages via the drop down box above the code: altair, branca, h3-py, matplotlib-base, numpy, pandas, plotly, pydeck, scipy 
+17. Click the blue "Run" button (It will take a minute to download all those map libraries)
 18. Note that background maps won't work until you set up mapbox.  
 
 ## How to Set Up Mapbox
@@ -89,15 +89,16 @@ Before running the application, ensure you have:
    - Copy your default public token or create a new one
    - Keep this token handy for the configuration
 
-2. **Verify Your App Setup**:
+2. **Get Your App's Auto-generated Name**:
+   - In Snowsight, open a worksheet using the db and schema CortexChartsV3
    - Run `SHOW STREAMLITS;` in Snowflake
-   - Verify you see your app named 'CortexChartsV3'
-   - Confirm it's in the CortexChartsV3 database and schema
+   - Find your app with title 'CortexChartsV3'
+   - Copy its "name" value (this is an auto-generated ID like 'FFLFTTR_22W04CI0')
 
 3. **Configure the Script**:
    - Open `connectMapBox.sql` in your editor
-   - The only required change is to update your Mapbox API key
-   - All other variables are pre-configured for the standard installation
+   - Update your Mapbox API key in the MAPBOX_API_KEY variable
+   - Update the APP_NAME variable with your app's auto-generated name from step 2
 
 4. **Execute the Script**:
    - Connect to Snowflake as ACCOUNTADMIN
@@ -119,9 +120,14 @@ If maps don't load:
 - Try refreshing your browser cache
 
 
+
 Note that if you want to demo against the Synthea healthcare Dataset, refer to this Git and request a datashare: https://github.com/sfc-gh-sweingartner/synthea/tree/main
 
 If you want to demo geospatial reporting against the telco network data, first install this project and leverage that yaml file (and thus the data): 
 https://github.com/sfc-gh-sweingartner/network_optmise
+
+Note the if you want to demo against synthea and / or the telco network and want a datashare, then send an email or Slack to stephen.weingartner@snowflake.com with your account details where I can do a direct share: 
+SELECT CURRENT_ORGANIZATION_NAME() || '.' || CURRENT_ACCOUNT_NAME();
+
 
 Reach out to stephen.weingartner@snowflake.com with any issues.

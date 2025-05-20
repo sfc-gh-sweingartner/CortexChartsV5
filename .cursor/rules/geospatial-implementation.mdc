@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Geospatial Implementation Guide
+
+## Key Implementation Steps
+
+1. **Add Geospatial Detection**: 
+   - In [pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py), enhance the chart selection logic to detect lat/lon columns
+   - Add a check before other chart rules to identify geospatial data
+
+2. **Create Map Chart Function**:
+   - Add `create_chart11()` to [utils/chart_utils.py](mdc:utils/chart_utils.py)
+   - Extract and adapt map visualization code from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py)
+   - Ensure the function takes dataframe and column configuration like other chart functions
+
+3. **Modify UI Navigation in Cortex Analyst**:
+   - Update the "Open in Designer" button to say "Open in Map Designer" when map is displayed
+   - Transfer appropriate data to Map Designer when a map is opened
+   - In Cortex Analyst, show a simplified map with only one metric (no customization controls)
+
+4. **Create Map Designer Page**:
+   - Create a new page at [pages/4_Map_Designer.py](mdc:pages/4_Map_Designer.py)
+   - Adapt the sidebar controls from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py):
+     - Allow selection of up to 3 metrics
+     - Provide color scheme options
+     - Let users adjust H3 resolution (hexagon size)
+     - Enable control of hexagon height and opacity
+   - Implement functionality to save the customized map to CORTEX_ANALYST_REPORTS table
+
+5. **Update Chart Code Generation**:
+   - Add chart11 handling in `generate_chart_code_for_dataframe()` function
+   - Ensure map charts can be saved and displayed in dashboards
+
+## Map Detection Rules
+
+When checking for geospatial data, use rules like:
+```python
+# Example: Detecting latitude/longitude columns
+lat_cols = [col for col in df.columns if any(term in col.lower() for term in ['lat', 'latitude'])]
+lon_cols = [col for col in df.columns if any(term in col.lower() for term in ['lon', 'long', 'longitude'])]
+
+# If both latitude and longitude columns exist, use map
+if lat_cols and lon_cols:
+    # Use Chart 11 - Map visualization
+    chart_metadata = {
+        'chart11_columns': {
+            'lat_col': lat_cols[0],
+            'lon_col': lon_cols[0],
+            # Add any other relevant columns (e.g., color, size)
+        }
+    }
+    df_display.attrs['chart_metadata'] = chart_metadata
+    alt_chart = create_chart11(df_display, chart_metadata['chart11_columns'])
+```
+
+Geospatial functionality should be given the highest priority in the chart selection process.

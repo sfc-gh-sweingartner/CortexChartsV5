@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Chart System Guide
+
+## Chart Selection Logic
+The chart selection system in [pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py) follows a 3-step process to determine the best visualization:
+
+### Step 1: Check for Geospatial Data (Highest Priority)
+First, the system checks if the data contains latitude and longitude columns:
+- Looks for columns with names containing 'lat', 'latitude', 'lon', 'longitude' (case insensitive)
+- Validates the values are within appropriate coordinate ranges (-90 to 90 for latitude, -180 to 180 for longitude)
+- If valid geospatial data is found, creates **Chart 11** (Geospatial Map)
+
+### Step 2: Try All Other Chart Types Based on Column Structure
+If no geospatial visualization was created or it failed, the system evaluates the data structure to find the most appropriate chart type:
+
+- **Chart 1**: Single date column (1), single numeric column (1) → Line/Bar Chart by Date
+- **Chart 2**: Single date column (1), two numeric columns (2) → Dual Axis Line Chart
+- **Chart 3**: Single date column (1), one text column (1), one numeric column (1) → Stacked Bar Chart by Date
+- **Chart 4**: Single date column (1), multiple text columns (2+), one numeric column (1) → Stacked Bar with Column Selector
+- **Chart 5**: No date columns (0), one text column (1), two numeric columns (2) → Scatter Plot
+- **Chart 6**: No date columns (0), two text columns (2), two numeric columns (2) → Multi-Dimension Scatter
+- **Chart 7**: No date columns (0), one text column (1), three numeric columns (3) → Bubble Chart
+- **Chart 8**: No date columns (0), multiple text columns (2+), multiple numeric columns (3+) → Multi-Dimension Bubble
+- **Chart 9**: Any text columns (1+), one numeric column (1) → Bar Chart with Selectors
+- **Chart 10**: Single row with 1+ numeric columns → KPI Tiles
+- **Chart 11**: Data that has a latitude and longitude.  Produce a map and ignore all the other rules.  
+
+### Step 3: Display the Appropriate Visualization
+Once a chart is created successfully, the system:
+1. Renders the appropriate visualization (map, chart, or KPI tiles)
+2. Shows the correct "Open in Designer" or "Open in Map Designer" button
+3. Prepares data transfer for the appropriate designer page
+
+## Geospatial Map Features (Chart 11)
+The geospatial map visualization in [utils/chart_utils.py](mdc:utils/chart_utils.py) provides:
+
+- 3D hexagon-based aggregation of geospatial point data
+- Automatic selection of a metric column for visualization
+- Color-coded hexagons based on metric values
+- Interactive tooltips showing value and count
+
+The **Map Designer** page allows users to:
+- Select up to three metrics to display on the map
+- Choose color schemes for each metric
+- Adjust hexagon size (H3 resolution)
+- Control hexagon height and opacity
+- Save the customized map as a report
+
+Implementation adapts the map functionality from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py).

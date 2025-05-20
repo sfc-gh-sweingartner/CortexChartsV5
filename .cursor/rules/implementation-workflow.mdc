@@ -1,0 +1,45 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Implementation Workflow
+
+Follow this sequence to implement the geospatial map feature:
+
+## Step 1: Add Map Utilities to chart_utils.py
+1. Add required imports for pydeck, h3, etc. to [utils/chart_utils.py](mdc:utils/chart_utils.py)
+2. Copy/adapt color schemes from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py)
+3. Implement helper functions for color calculation and data preparation
+4. Create the `create_chart11()` function for maps
+
+## Step 2: Update Cortex Analyst Chart Detection
+1. In [pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py), add lat/lon detection before other chart rules
+2. Add imports for the new dependencies
+3. Update chart selection logic to prioritize maps when lat/lon columns are found
+4. Modify chart display code to handle pydeck objects
+5. Change "Open in Designer" button text to "Open in Map Designer" when displaying a map
+6. Update data transfer to send to Map Designer instead of Report Designer for maps
+
+## Step 3: Create Map Designer Page
+1. Create new [pages/4_Map_Designer.py](mdc:pages/4_Map_Designer.py) based on structure from Report Designer
+2. Implement sidebar controls from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py):
+   - Metrics selection (up to 3)
+   - Color scheme options
+   - H3 resolution adjustment
+   - Hexagon height and opacity controls
+3. Implement map rendering with multiple metrics
+4. Add functionality to save customized maps to CORTEX_ANALYST_REPORTS table
+
+## Step 4: Update Dashboard Integration
+1. Make sure [pages/3_Dashboard.py](mdc:pages/3_Dashboard.py) can display map reports
+2. Ensure proper rendering of pydeck objects in dashboard layouts
+
+## Step 5: Test and Debug
+1. Test with various datasets containing lat/lon columns
+2. Verify map detection and rendering works correctly in Cortex Analyst
+3. Test full customization workflow in Map Designer
+4. Ensure maps can be saved as reports and displayed in dashboards
+5. Validate that the "Open in Map Designer" button works when showing maps
+
+Always ensure all libraries used are available in the Snowflake Anaconda Channel.

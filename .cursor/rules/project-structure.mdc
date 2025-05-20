@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Structure Guide
+
+This is a Streamlit in Snowflake application with four main components:
+
+1. **Cortex Analyst** ([pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py)): Allows users to ask questions in natural language to get SQL queries, data results, and visualizations.
+
+2. **Report Designer** ([pages/2_Report_Designer.py](mdc:pages/2_Report_Designer.py)): Lets users customize SQL and chart code from Cortex Analyst results, then save as reports.
+
+3. **Map Designer** (to be created as [pages/4_Map_Designer.py](mdc:pages/4_Map_Designer.py)): Specialized page for customizing geospatial visualizations with controls for metrics, colors, hexagon size, and height.
+
+4. **Dashboard** ([pages/3_Dashboard.py](mdc:pages/3_Dashboard.py)): Enables users to create dashboards by adding multiple reports.
+
+Shared functionality:
+- Chart utilities are centralized in [utils/chart_utils.py](mdc:utils/chart_utils.py)
+- The solution needs to be enhanced with geospatial map functionality from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py)
+
+All Python libraries must be compliant with the Snowflake Anaconda Channel: https://repo.anaconda.com/pkgs/snowflake/

@@ -7,8 +7,8 @@
 ---------------------------------------------------------------------------
 -- Replace these values with your specific information before running
 SET APP_CREATOR_ROLE = 'ACCOUNTADMIN';  -- Role that created the Streamlit app
-SET DB_NAME = 'YOUR_DATABASE_NAME';      -- Database where your app is deployed
-SET SCHEMA_NAME = 'YOUR_SCHEMA_NAME';    -- Schema where your app is deployed
+SET DB_NAME = 'CortexChartsV3';      -- Database where your app is deployed
+SET SCHEMA_NAME = 'CortexChartsV3';    -- Schema where your app is deployed
 SET APP_NAME = 'YOUR_APP_NAME';          -- Name you gave your app in Streamlit
 SET MAPBOX_API_KEY = 'YOUR_MAPBOX_KEY';  -- Your Mapbox API key
 

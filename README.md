@@ -56,13 +56,13 @@ Before running the application, ensure you have:
 
 ## How to Deploy the App
 1. In Snowsight, open a SQL worksheet and run this with ACCOUNTADMIN to allow your env to see this GIT project: CREATE OR REPLACE API INTEGRATION git_sweingartner API_PROVIDER = git_https_api API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-sweingartner') ENABLED = TRUE;
-2. In the database and schema where you are going to deploy this SiS app (can be any) run the create_reports_table.sql script to create the two tables that hold report designs
+2. Run the create_reports_table.sql script which will create the CortexChartsV3 database and schema, and create the two tables that hold report designs
 3. click Projects > Streamlit
 4. Tick the drop downbox next to the blue "+ Streamlit App" and select "create from repository"
 5. Click "Create Git Repository"
 6. In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV3
 7. In the API Integration drop down box, choose GIT_SWEINGARTNER
-8. Deploy it into the same DB & Schema where you created the two tables and use any WH
+8. Deploy it into the CortexChartsV3 database and CortexChartsV3 schema, and use any WH
 9. Click Home.py then "Select File"
 10. Click create
 11. Open the code editor panel and edit which yaml files (i.e. semantic model) that the solution is looking at. You will find the line to alter at line 50 of the 1_Cortex_Analyst.py file

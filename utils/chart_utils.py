@@ -507,21 +507,14 @@ def create_chart10(df, cols=None):
     
     This chart type is designed for single-row data frames with 1-4 numeric columns.
     It displays each numeric value as a KPI tile using Streamlit's native metric component.
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame with data (expected to be a single row)
-    cols : dict, optional
-        Column configuration with numeric_cols and custom labels
-        
-    Returns:
-    --------
-    object
-        Returns a special dictionary object with render_method to handle both direct
-        rendering (Cortex Analyst) and delayed rendering (Dashboard)
     """
     try:
+        # Add debug logging
+        print(f"Creating KPI tiles for DataFrame:")
+        print(f"Shape: {df.shape}")
+        print(f"Columns: {df.columns.tolist()}")
+        print(f"Data types:\n{df.dtypes}")
+        
         # Check if we have a single row dataframe
         if len(df) != 1:
             st.warning("KPI tiles are designed for single row results only.")
@@ -530,11 +523,13 @@ def create_chart10(df, cols=None):
         # Detect numeric columns automatically if not specified in cols
         if cols and 'numeric_cols' in cols:
             numeric_cols = cols.get('numeric_cols')
+            print(f"Using specified numeric columns: {numeric_cols}")
             # Get custom labels if provided
             labels = cols.get('labels', {})
         else:
             col_types = detect_column_types(df)
             numeric_cols = col_types['numeric_cols']
+            print(f"Auto-detected numeric columns: {numeric_cols}")
             labels = {}
         
         # If no numeric columns, return None

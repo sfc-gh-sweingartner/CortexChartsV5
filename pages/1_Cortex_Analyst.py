@@ -377,6 +377,22 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         df (pd.DataFrame): The query results.
         message_index (int): The index of the message.
     """
+    # Add debug logging
+    print(f"Input DataFrame type: {type(df)}")
+    print(f"Input DataFrame shape: {df.shape}")
+    print(f"Input DataFrame columns: {df.columns.tolist()}")
+    print(f"Input DataFrame dtypes:\n{df.dtypes}")
+    
+    # Ensure we're working with a pandas DataFrame
+    if not isinstance(df, pd.DataFrame):
+        try:
+            df = pd.DataFrame(df)
+            print("Successfully converted input to DataFrame")
+        except Exception as e:
+            print(f"Error converting to DataFrame: {str(e)}")
+            st.error("Could not process data into proper format for visualization")
+            return
+
     # Limit to the top 5000 rows for visualization
     df_display = df.head(5000)
     

@@ -31,12 +31,13 @@ This application provides a suite of tools to interact with your Snowflake data:
 - **Cortex Analyst**: Ask questions about your data using natural language
 - **Report Designer**: Create and customize reports from your data
 - **Dashboard**: View and interact with visualizations in a dashboard format
+- **Map Designer**: Create and customize maps from your data
 
 Select Cortex Analyst on the left to get started. Ask questions and if you like the results,
-send it to Report Designer to modify if if you like then save the report. 
+send it to Report or Map Designer to modify if if you like then save the report. 
 Once you have a report, you can add it to the Dashboard.
 
-The stats below are mock KPI's but they make you look good so let's just keep them.
+The stats below are just mock KPI's but they make you look good so let's just keep them.
                         
 """)
 

@@ -606,44 +606,78 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         if chart_created and alt_chart:
             if isinstance(alt_chart, pdk.Deck):
                 st.pydeck_chart(alt_chart)
+                # For maps (Chart 11), show "Open in Map Designer" button
+                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}"):
+                    if "map_transfer" not in st.session_state:
+                        st.session_state.map_transfer = {}
+                    
+                    # Extract SQL and prompt
+                    sql_statement = ""
+                    prompt = ""
+                    for message in st.session_state.messages:
+                        if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
+                            for item in message["content"]:
+                                if item["type"] == "sql":
+                                    sql_statement = item["statement"]
+                        elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
+                            for item in message["content"]:
+                                if item["type"] == "text":
+                                    prompt = item["text"]
+                    
+                    # Generate chart code
+                    from utils.chart_utils import generate_chart_code_for_dataframe
+                    chart_code = generate_chart_code_for_dataframe(df_display)
+                    
+                    # Store data for Map Designer
+                    st.session_state.map_transfer = {
+                        "df": df_display,
+                        "sql": sql_statement,
+                        "prompt": prompt,
+                        "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
+                        "redirect": True,
+                        "chart_metadata": df_display.attrs.get('chart_metadata', {}),
+                        "chart_code": chart_code
+                    }
+                    
+                    # Navigate to Map Designer
+                    st.switch_page("pages/3_Map_Designer.py")
             else:
                 st.altair_chart(alt_chart, use_container_width=True)
-            
-            # Add "Open in Designer" button
-            if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
-                if "report_transfer" not in st.session_state:
-                    st.session_state.report_transfer = {}
-                
-                # Extract SQL and prompt
-                sql_statement = ""
-                prompt = ""
-                for message in st.session_state.messages:
-                    if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
-                        for item in message["content"]:
-                            if item["type"] == "sql":
-                                sql_statement = item["statement"]
-                    elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
-                        for item in message["content"]:
-                            if item["type"] == "text":
-                                prompt = item["text"]
-                
-                # Generate chart code
-                from utils.chart_utils import generate_chart_code_for_dataframe
-                chart_code = generate_chart_code_for_dataframe(df_display)
-                
-                # Store data for Report Designer
-                st.session_state.report_transfer = {
-                    "df": df_display,
-                    "sql": sql_statement,
-                    "prompt": prompt,
-                    "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
-                    "redirect": True,
-                    "chart_metadata": df_display.attrs.get('chart_metadata', {}),
-                    "chart_code": chart_code
-                }
-                
-                # Navigate to Report Designer
-                st.switch_page("pages/2_Report_Designer.py")
+                # For non-map charts (Chart 1-10), show "Open in Designer" button
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
+                    if "report_transfer" not in st.session_state:
+                        st.session_state.report_transfer = {}
+                    
+                    # Extract SQL and prompt
+                    sql_statement = ""
+                    prompt = ""
+                    for message in st.session_state.messages:
+                        if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
+                            for item in message["content"]:
+                                if item["type"] == "sql":
+                                    sql_statement = item["statement"]
+                        elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
+                            for item in message["content"]:
+                                if item["type"] == "text":
+                                    prompt = item["text"]
+                    
+                    # Generate chart code
+                    from utils.chart_utils import generate_chart_code_for_dataframe
+                    chart_code = generate_chart_code_for_dataframe(df_display)
+                    
+                    # Store data for Report Designer
+                    st.session_state.report_transfer = {
+                        "df": df_display,
+                        "sql": sql_statement,
+                        "prompt": prompt,
+                        "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
+                        "redirect": True,
+                        "chart_metadata": df_display.attrs.get('chart_metadata', {}),
+                        "chart_code": chart_code
+                    }
+                    
+                    # Navigate to Report Designer
+                    st.switch_page("pages/2_Report_Designer.py")
         else:
             st.warning("No appropriate chart found for this data structure.")
             

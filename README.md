@@ -89,16 +89,14 @@ Before running the application, ensure you have:
    - Copy your default public token or create a new one
    - Keep this token handy for the configuration
 
-2. **Get Your App's Auto-generated Name**:
-   - In Snowsight, open a worksheet using the db and schema CortexChartsV3
-   - Run `SHOW STREAMLITS;` in Snowflake
-   - Find your app with title 'CortexChartsV3'
-   - Copy its "name" value (this is an auto-generated ID like 'FFLFTTR_22W04CI0')
-
-3. **Configure the Script**:
+2. **Configure the Script**:
    - Open `connectMapBox.sql` in your editor
    - Update your Mapbox API key in the MAPBOX_API_KEY variable
-   - Update the APP_NAME variable with your app's auto-generated name from step 2
+   - When you get to the ALTER STREAMLIT statement:
+     - Run the SHOW STREAMLITS command first
+     - Find your app with title 'CortexChartsV3'
+     - Copy its "name" value (an auto-generated ID like 'FFLFTTR_22W04CI0')
+     - Replace "REPLACE_WITH_YOUR_APP_NAME" with this value
 
 4. **Execute the Script**:
    - Connect to Snowflake as ACCOUNTADMIN

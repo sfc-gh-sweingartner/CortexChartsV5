@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Chart System Guide
 
@@ -50,4 +50,3 @@ The **Map Designer** page allows users to:
 - Control hexagon height and opacity
 - Save the customized map as a report
 
-Implementation adapts the map functionality from [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py).

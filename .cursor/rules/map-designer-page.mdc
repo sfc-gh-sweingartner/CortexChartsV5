@@ -1,14 +1,14 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Map Designer Page Implementation
 
 ## Overview
-The Map Designer page will be a specialized interface for customizing geospatial visualizations. It should be implemented as a new file at [pages/4_Map_Designer.py](mdc:pages/4_Map_Designer.py) and will provide an experience similar to the map portion of [Dev/3_Geospatial_Analysis.py](mdc:Dev/3_Geospatial_Analysis.py).
+The Map Designer page is a specialized interface for customizing geospatial visualizations. It is the page [pages/4_Map_Designer.py](mdc:pages/4_Map_Designer.py) 
 
-## Key Features to Implement
+## Key Features
 
 1. **Data Reception from Cortex Analyst**:
    - Receive DataFrame with geospatial data
@@ -32,62 +32,4 @@ The Map Designer page will be a specialized interface for customizing geospatial
    - Save button to store the customized map to CORTEX_ANALYST_REPORTS table
    - Store both SQL and visualization configuration
 
-## Component Structure
-
-```python
-def main():
-    # Page title and configuration
-    st.title("Map Designer")
-    
-    # Initialize session state
-    init_session_state()
-    
-    # Check for data transferred from Cortex Analyst
-    get_map_data_from_transfer()
-    
-    # Sidebar configuration controls
-    add_sidebar_controls()
-    
-    # Main content area
-    if st.session_state.map_data is not None:
-        # SQL query preview area
-        with st.expander("SQL Query", expanded=False):
-            st.code(st.session_state.sql_statement, language="sql")
-        
-        # Data preview
-        with st.expander("Data Preview", expanded=False):
-            st.dataframe(st.session_state.map_data.head(10))
-        
-        # Map visualization
-        st.subheader("Map Preview")
-        render_map()
-        
-        # Save controls
-        add_save_controls()
-    else:
-        st.info("No geospatial data available. Open a map from Cortex Analyst to get started.")
-```
-
-## Integration with Existing System
-
-1. **Data Transfer**: Update Cortex Analyst to direct users to Map Designer when a map is displayed:
-```python
-if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}"):
-    if "map_transfer" not in st.session_state:
-        st.session_state.map_transfer = {}
-    
-    # Store data to be accessed by Map Designer
-    st.session_state.map_transfer = {
-        "df": df_display,
-        "sql": sql_statement,
-        "prompt": prompt,
-        "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
-        "redirect": True,
-        "chart_metadata": df_display.attrs.get('chart_metadata', {})
-    }
-    
-    # Navigate to Map Designer
-    st.switch_page("pages/4_Map_Designer.py")
-```
-
-2. **Saving Maps**: Ensure maps are saved in the same format as other reports to enable seamless integration with the Dashboard page.
+5. **Saving Maps**: Ensure maps are saved in the same format as other reports to enable seamless integration with the Dashboard page.

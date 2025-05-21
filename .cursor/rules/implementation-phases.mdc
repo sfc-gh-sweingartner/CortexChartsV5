@@ -1,0 +1,106 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Implementation Phases Guide
+
+## Phase 1: Semantic Model Parser
+**Status: Not Started**
+1. Create YAML parser utility in [utils/semantic_model_utils.py](mdc:utils/semantic_model_utils.py)
+   - Parse dimensions, facts, time_dimensions
+   - Extract column metadata (names, descriptions, types)
+   - Handle relationships and joins
+   - Add comprehensive error handling
+   - Create unit tests
+
+2. Add model selection functionality to [pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py)
+   - Implement model dropdown in sidebar
+   - Handle model switching
+   - Cache parsed model data
+   - Add loading indicators
+   - Test with multiple YAML files
+
+## Phase 2: Column Display Interface
+**Status: Not Started**
+1. Create scrollable column list component
+   - Group by column types (dimensions, metrics, time)
+   - Implement checkbox selection
+   - Add hover tooltips with metadata
+   - Style for clear visual hierarchy
+
+2. Add column selection state management
+   - Track selected columns
+   - Maintain selection across rerenders
+   - Handle deselection
+   - Add clear/reset functionality
+
+## Phase 3: Operation Configuration
+**Status: Not Started**
+1. Create selection table component
+   - Display selected column names
+   - Add operation dropdown (Group By, Sum, etc.)
+   - Implement filter input field
+   - Handle dynamic row addition/removal
+
+2. Add operation state management
+   - Store operation selections
+   - Validate operation combinations
+   - Handle operation changes
+   - Implement default values
+
+## Phase 4: Prompt Generation
+**Status: Not Started**
+1. Create prompt generation logic
+   - Format selected columns and operations
+   - Handle filter conditions
+   - Generate readable English statements
+   - Validate generated prompts
+
+2. Implement UI integration
+   - Add generation button
+   - Auto-populate chat input
+   - Preview generated prompt
+   - Allow manual editing
+
+## Phase 5: Context Preservation (Future)
+**Status: Future Enhancement**
+1. Enhance data transfer between pages
+   - Store semantic model metadata
+   - Pass context to designers
+   - Maintain business names
+   - Preserve column types
+
+2. Update visualization logic
+   - Use semantic types in chart selection
+   - Display business names in charts
+   - Apply semantic groupings
+   - Update tooltips with definitions
+
+## Testing Strategy
+Each phase should include:
+1. Unit tests for new components
+2. Integration tests with existing functionality
+3. User acceptance testing
+4. Performance testing with large models
+
+## Documentation Updates
+Each phase requires:
+1. Code documentation
+2. User guide updates
+3. Example workflows
+4. Troubleshooting guides
+
+## Dependencies
+- Phase 1 must be completed before Phases 2-4
+- Phases 2-3 can be developed in parallel
+- Phase 4 depends on Phases 2-3
+- Phase 5 can start after Phase 4
+
+## Success Criteria
+Each phase is considered complete when:
+1. All tasks are implemented
+2. Tests are passing
+3. Documentation is updated
+4. Code review is approved
+5. User acceptance testing is successful

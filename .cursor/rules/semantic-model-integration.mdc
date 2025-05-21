@@ -1,0 +1,62 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Semantic Model Integration Guide
+
+## Overview
+The semantic model integration in [pages/1_Cortex_Analyst.py](mdc:pages/1_Cortex_Analyst.py) provides users with a structured way to explore and utilize Snowflake semantic models for query generation.
+
+## Semantic Model Display
+
+### Model Selection
+- Display semantic model selection dropdown in the sidebar
+- Support multiple YAML files from different paths.  
+- Only shows one model at a time.  Automatically reset session state when model changes
+
+### Column List Display
+Located in the sidebar under SQL Execution Mode:
+1. Parse and display columns from selected semantic model
+2. Group columns first alphabetically by table and then alphabetically by column
+3. Support scrollable list with tick boxes for selection
+4. Show tooltips on hover with:
+   - Column type (metric, dimension, date)
+   - Column definition
+
+## Prompt Generation
+
+### Prompt Creation Table
+Display a table below the column list showing:
+1. "Column Name":
+2. "Results" whish has these dropdown values:
+   - Group By
+   - Sum
+   - Count
+   - Avg
+   - Min
+   - Max
+   - Don't Show
+3. "Filter":
+   - Default: "Don't Filter"
+   - Accepts: free-form English text
+
+### Prompt Text Formation
+- "Generate Prompt" button below Prompt Creation Table
+- Creates structured English prompt for Cortex Analyst
+- Format: "For [Column Name 2} [filter 2] AND [Column Name 3] [Filter 3], Show me [Column Name 1], Average of [Column Name 2], etc... Grouped by [Column Name 1] and [Column Name 4]"
+- Example: For fiscal year 2021, show me the article description, category description and total sales amount grouped by article description and category description
+- Auto-populates chat input field with generated prompt
+
+## Data Context Preservation
+Future enhancement to maintain semantic model context:
+1. Store selected column metadata during initial selection
+2. Pass semantic information to Report Designer and Map Designer
+3. Use business names and column types in visualizations
+4. Preserve dimension/metric context for chart generation
+
+## Implementation Notes
+1. Parse YAML files using standard Python libraries
+2. Cache parsed semantic model data in session state
+3. Future enhancement - Update visualization logic to consider semantic model metadata
+4. Future enhancement - Maintain consistent column naming across all pages

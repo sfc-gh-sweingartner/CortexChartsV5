@@ -1,0 +1,85 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# User Interaction Guide
+
+## General Interaction Principles
+
+### Progressive Disclosure
+1. Present complex functionality in stages
+2. Show advanced options only when relevant
+3. Use expandable sections for detailed information
+4. Maintain clear visual hierarchy
+
+### Error Prevention
+1. Validate user inputs before processing
+2. Provide clear feedback on invalid actions
+3. Show tooltips and help text for complex features
+4. Maintain consistent undo/reset capabilities
+
+## Task-Specific Interactions
+
+### Semantic Model Exploration
+1. **Model Selection**:
+   - Clear dropdown labels
+   - Immediate feedback on selection
+   - Reset relevant state on change
+
+2. **Column Selection**:
+   - Scrollable list with clear groupings
+   - Checkbox interaction for multiple selection
+   - Hover tooltips for column details
+   - Visual feedback on selection
+
+3. **Operation Configuration**:
+   - Intuitive dropdown controls
+   - Context-appropriate operation options
+   - Clear default values
+   - Immediate feedback on changes
+
+### Prompt Generation
+1. **Filter Input**:
+   - Free-form text entry
+   - Clear placeholder text
+   - Example format suggestions
+   - Input validation feedback
+
+2. **Generated Prompts**:
+   - Clear, readable format
+   - Automatic population in chat
+   - Option to edit before sending
+   - Preview before submission
+
+## Debugging and Testing
+1. **Early Development**:
+   - Support creative solutions
+   - Allow experimental features
+   - Gather user feedback
+
+2. **Later Stages**:
+   - Minimize changes
+   - Focus on stability
+   - Prioritize bug fixes
+   - Maintain existing functionality
+
+## Documentation
+1. **In-App Help**:
+   - Context-sensitive help
+   - Clear usage instructions
+   - Example workflows
+   - Best practices
+
+2. **Error Messages**:
+   - Clear problem description
+   - Suggested resolution steps
+   - User-friendly language
+   - Relevant documentation links
+
+## Rule Conflicts
+If user requests conflict with rules:
+1. Document the conflict
+2. Propose rule modifications
+3. Seek approval for changes
+4. Update documentation accordingly

@@ -31,6 +31,7 @@ except ImportError as e:
 
 # Add path for utils module
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.semantic_model_utils import SemanticModelParser, ColumnType
 from utils.chart_utils import (
     create_chart1, create_chart2, create_chart3, create_chart4,
     create_chart5, create_chart6, create_chart7, create_chart8, create_chart9, create_chart10,
@@ -75,10 +76,11 @@ def reset_session_state():
     st.session_state.messages = []  # List to store conversation messages
     st.session_state.active_suggestion = None  # Currently selected suggestion
     st.session_state.warnings = []  # List to store warnings
-    st.session_state.form_submitted = (
-        {}
-    )  # Dictionary to store feedback submission for each request
+    st.session_state.form_submitted = {}  # Dictionary to store feedback submission for each request
     st.session_state.sql_execution_mode = "Run"  # Default SQL execution mode
+    st.session_state.selected_columns = set()  # Selected columns from semantic model
+    st.session_state.column_operations = {}  # Operations for selected columns
+    st.session_state.generated_prompt = None  # Generated prompt from column selections
 
 
 def show_header_and_sidebar():
@@ -89,21 +91,18 @@ def show_header_and_sidebar():
         "Welcome to Cortex Analyst! Type your questions below to interact with your data. "
     )
 
-    # Sidebar with a reset button
+    # Sidebar with a reset button and semantic model selector
     with st.sidebar:
-        st.selectbox(
+        selected_model = st.selectbox(
             "Selected semantic model:",
             AVAILABLE_SEMANTIC_MODELS_PATHS,
             format_func=lambda s: s.split("/")[-1],
             key="selected_semantic_model_path",
             on_change=reset_session_state,
         )
+        
         st.divider()
-        # Center this button
-        _, btn_container, _ = st.columns([2, 6, 2])
-        if btn_container.button("Clear Chat History", use_container_width=True):
-            reset_session_state()
-            
+        
         # Add SQL execution mode toggle
         st.radio(
             "SQL Execution Mode:",
@@ -112,12 +111,180 @@ def show_header_and_sidebar():
             key="sql_execution_mode",
             horizontal=True,
         )
+        
+        st.divider()
+        
+        # Display semantic model columns
+        display_semantic_model_columns(selected_model)
+        
+        st.divider()
+        
+        # Center this button
+        _, btn_container, _ = st.columns([2, 6, 2])
+        if btn_container.button("Clear Chat History", use_container_width=True):
+            reset_session_state()
+
+
+def display_semantic_model_columns(model_path: str):
+    """Display columns from the semantic model in the sidebar.
+    
+    Args:
+        model_path: Path to the semantic model YAML file
+    """
+    try:
+        # Read the semantic model file
+        file_path = model_path.split("@")[-1]  # Remove @ prefix if present
+        yaml_content = session.sql(f"SELECT GET_STAGE_FILE_CONTENT('@{file_path}')").collect()[0][0]
+        
+        # Parse the semantic model
+        parser = SemanticModelParser(yaml_content)
+        tables = parser.parse()
+        
+        # Initialize session state for selected columns if not exists
+        if "selected_columns" not in st.session_state:
+            st.session_state.selected_columns = set()
+        
+        st.markdown("### Available Columns")
+        
+        # Create an expander for each table
+        for table in sorted(tables, key=lambda x: x.name):
+            with st.expander(f"📊 {table.name}", expanded=False):
+                for col in table.columns:
+                    # Create unique key for checkbox
+                    col_key = f"{table.name}.{col.name}"
+                    
+                    # Create tooltip text
+                    tooltip = f"""
+                    **Column:** {col.name}
+                    **Type:** {col.column_type.value}
+                    **Data Type:** {col.data_type}
+                    **Description:** {col.description or 'No description available'}
+                    """
+                    
+                    # Create a container for the checkbox and tooltip
+                    col1, col2 = st.columns([0.9, 0.1])
+                    with col1:
+                        if st.checkbox(
+                            col.name,
+                            key=f"col_{col_key}",
+                            value=col_key in st.session_state.selected_columns
+                        ):
+                            st.session_state.selected_columns.add(col_key)
+                        else:
+                            st.session_state.selected_columns.discard(col_key)
+                    with col2:
+                        st.markdown(f"<div title='{tooltip}'>ℹ️</div>", unsafe_allow_html=True)
+        
+        # If columns are selected, show the operation selection table
+        if st.session_state.selected_columns:
+            st.markdown("### Selected Columns")
+            
+            # Initialize operation selections if not exists
+            if "column_operations" not in st.session_state:
+                st.session_state.column_operations = {}
+            
+            # Create a DataFrame for the operations table
+            operations_data = []
+            for col_key in sorted(st.session_state.selected_columns):
+                table_name, col_name = col_key.split(".")
+                
+                # Get or initialize operation settings
+                if col_key not in st.session_state.column_operations:
+                    st.session_state.column_operations[col_key] = {
+                        "results": "Group By",
+                        "filter": "Don't Filter"
+                    }
+                
+                operations_data.append({
+                    "Column": col_name,
+                    "Results": st.selectbox(
+                        f"Results for {col_name}",
+                        ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"],
+                        key=f"results_{col_key}",
+                        index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"].index(
+                            st.session_state.column_operations[col_key]["results"]
+                        )
+                    ),
+                    "Filter": st.text_input(
+                        f"Filter for {col_name}",
+                        value=st.session_state.column_operations[col_key]["filter"],
+                        key=f"filter_{col_key}"
+                    )
+                })
+                
+                # Update the operations in session state
+                st.session_state.column_operations[col_key] = {
+                    "results": operations_data[-1]["Results"],
+                    "filter": operations_data[-1]["Filter"]
+                }
+            
+            # Add Generate Prompt button
+            if st.button("Generate Prompt"):
+                prompt = generate_prompt_from_selections()
+                # Update the chat input with the generated prompt
+                st.session_state.generated_prompt = prompt
+                st.experimental_rerun()
+
+    except Exception as e:
+        st.error(f"Error loading semantic model: {str(e)}")
+
+
+def generate_prompt_from_selections() -> str:
+    """Generate a natural language prompt from the selected columns and operations.
+    
+    Returns:
+        str: The generated prompt
+    """
+    # Start with "Show me"
+    parts = ["Show me"]
+    
+    # Add columns and their operations
+    result_parts = []
+    filter_parts = []
+    
+    for col_key, ops in st.session_state.column_operations.items():
+        _, col_name = col_key.split(".")
+        
+        # Handle results
+        if ops["results"] != "Don't Show":
+            if ops["results"] == "Group By":
+                result_parts.append(col_name)
+            else:
+                result_parts.append(f"{ops['results']} of {col_name}")
+        
+        # Handle filters
+        if ops["filter"] and ops["filter"] != "Don't Filter":
+            filter_parts.append(f"{col_name} is {ops['filter']}")
+    
+    # Combine parts
+    parts.append(" and ".join(result_parts))
+    
+    if filter_parts:
+        parts.append("WHERE")
+        parts.append(" AND ".join(filter_parts))
+    
+    # Add Group By clause
+    group_by_cols = [
+        col_key.split(".")[1]
+        for col_key, ops in st.session_state.column_operations.items()
+        if ops["results"] == "Group By"
+    ]
+    if group_by_cols:
+        parts.append("Group by")
+        parts.append(", ".join(group_by_cols))
+    
+    return " ".join(parts)
 
 
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
+    # If we have a generated prompt, use it as the default
+    default_input = st.session_state.get("generated_prompt", "")
+    if default_input:
+        st.session_state.generated_prompt = None  # Clear it after use
+    
     # Handle chat input
-    user_input = st.chat_input("What is your question?")
+    user_input = st.chat_input("What is your question?", value=default_input)
     if user_input:
         process_user_input(user_input)
     # Handle suggested question click

@@ -1,8 +1,8 @@
--- Create and use the CortexChartsV3 database and schema
-CREATE DATABASE IF NOT EXISTS CortexChartsV3;
-CREATE SCHEMA IF NOT EXISTS CortexChartsV3.CortexChartsV3;
-USE DATABASE CortexChartsV3;
-USE SCHEMA CortexChartsV3;
+-- Create and use the CortexChartsV4 database and schema
+CREATE DATABASE IF NOT EXISTS CortexChartsV4;
+CREATE SCHEMA IF NOT EXISTS CortexChartsV4.CortexChartsV4;
+USE DATABASE CortexChartsV4;
+USE SCHEMA CortexChartsV4;
 
 -- Create Reports Table for Snowflake Interactive Charts
 CREATE OR REPLACE TABLE  CORTEX_ANALYST_REPORTS (

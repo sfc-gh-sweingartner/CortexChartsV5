@@ -7,8 +7,8 @@
 ---------------------------------------------------------------------------
 -- The only variable you need to modify is your Mapbox API key
 SET APP_CREATOR_ROLE = 'ACCOUNTADMIN';  
-SET DB_NAME = 'CortexChartsV3';      
-SET SCHEMA_NAME = 'CortexChartsV3';    
+SET DB_NAME = 'CortexChartsV4';      
+SET SCHEMA_NAME = 'CortexChartsV4';    
 SET MAPBOX_API_KEY = 'YOUR_MAPBOX_KEY';  -- Replace with your Mapbox API key
 
 
@@ -69,7 +69,7 @@ GRANT USAGE ON INTEGRATION map_access_int
 -- Then replace YOUR_APP_NAME below with that name (e.g., 'FFLFTTR_22W04CI0')
 SHOW STREAMLITS;
 
-ALTER STREAMLIT CortexChartsV3.CortexChartsV3."REPLACE_WITH_YOUR_APP_NAME"
+ALTER STREAMLIT CortexChartsV4.CortexChartsV4."REPLACE_WITH_YOUR_APP_NAME"
   SET EXTERNAL_ACCESS_INTEGRATIONS = (map_access_int)
   SECRETS = ('mapbox_key' = mapbox_key);
 

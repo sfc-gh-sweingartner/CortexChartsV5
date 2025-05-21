@@ -56,18 +56,18 @@ Before running the application, ensure you have:
 
 ## How to Deploy the App
 1. In Snowsight, open a SQL worksheet and run this with ACCOUNTADMIN to allow your env to see this GIT project: CREATE OR REPLACE API INTEGRATION git_sweingartner API_PROVIDER = git_https_api API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-sweingartner') ENABLED = TRUE;
-2. Run the create_reports_table.sql script which will create the CortexChartsV3 database and schema, and create the two tables that hold report designs
+2. Run the create_reports_table.sql script which will create the CortexChartsV4 database and schema, and create the two tables that hold report designs
 3. You need to make SiS UI aware of the new DB.  Refreshing the dbs via the UI doesn't work.  So, refresh your entire browser (e.g. log out and in again or hit Control - Shift - R on a Mac )
 4. click Projects > Streamlit
 5. Tick the drop downbox next to the blue "+ Streamlit App" and select "create from repository"
 6. Click "Create Git Repository"
-7. In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV3
+7. In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV4
 8. You can leave the repository name as the default
 9. In the API Integration drop down box, choose GIT_SWEINGARTNER
-10. Deploy it into the CortexChartsV3 database and CortexChartsV3 schema, and use any WH
+10. Deploy it into the CortexChartsV4 database and CortexChartsV4 schema, and use any WH
 11. Click Home.py then "Select File"
-12. Choose the db CortexChartsV3 and schema CortexChartsV3
-13. Name it CortexChartsV3 (You can rename after everything is working)
+12. Choose the db CortexChartsV4 and schema CortexChartsV4
+13. Name it CortexChartsV4 (You can rename after everything is working)
 14. Choose any warehouse you want (maybe small or above) and click create
 15. Open the code editor panel and edit which yaml file(s) (i.e. semantic model) that your solution is going to use.  You will find the line to alter at line 50 of the /pages/1_Cortex_Analyst.py file
 16. Add the following packages via the drop down box above the code: altair, branca, h3-py, matplotlib-base, numpy, pandas, plotly, pydeck, scipy 
@@ -94,7 +94,7 @@ Before running the application, ensure you have:
    - Update your Mapbox API key in the MAPBOX_API_KEY variable
    - When you get to the ALTER STREAMLIT statement:
      - Run the SHOW STREAMLITS command first
-     - Find your app with title 'CortexChartsV3'
+     - Find your app with title 'CortexChartsV4'
      - Copy its "name" value (an auto-generated ID like 'FFLFTTR_22W04CI0')
      - Replace "REPLACE_WITH_YOUR_APP_NAME" with this value
 

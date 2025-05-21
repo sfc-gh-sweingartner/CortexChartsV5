@@ -140,10 +140,8 @@ def display_semantic_model_columns(model_path: str):
             # For development and testing - try to read directly from local file system
             with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
                 yaml_content = f.read()
-                st.sidebar.success(f"Read YAML file from local path: Dev/{file_path.split('/')[-1]}")
         except FileNotFoundError:
             # If local file not found, try using Snowpark to read from stage
-            st.sidebar.info(f"Attempting to read from Snowflake stage: {file_path}")
             
             # Handle different path formats more robustly
             parts = file_path.split('/')
@@ -169,7 +167,6 @@ def display_semantic_model_columns(model_path: str):
                     query = f"""
                     SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
                     """
-                    st.sidebar.info(f"Executing query: {query}")
                     result = session.sql(query).collect()
                     if result and len(result) > 0:
                         yaml_content = result[0][0]
@@ -178,7 +175,6 @@ def display_semantic_model_columns(model_path: str):
                         alt_query = f"""
                         SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
                         """
-                        st.sidebar.info(f"Trying alternative query: {alt_query}")
                         try:
                             result = session.sql(alt_query).collect()
                             if result and len(result) > 0:
@@ -194,9 +190,6 @@ def display_semantic_model_columns(model_path: str):
         
         # Debug the YAML content to see if it has a tables section
         if yaml_content:
-            # Show the first 500 characters to verify content
-            st.sidebar.info(f"YAML content preview: {yaml_content[:500]}...")
-            
             # Check for 'tables:' in the content
             if 'tables:' not in yaml_content:
                 st.sidebar.warning("'tables:' section not found in YAML content")

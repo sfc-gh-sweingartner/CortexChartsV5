@@ -1,0 +1,839 @@
+name: fakesalesv1
+description: This semantic model joins sales to store sites and also to products to enable a retailer to analyse their sales
+tables:
+  - name: DIM_FAKE_PRODUCT
+    base_table:
+      database: QUANTIUM_DEMO
+      schema: TEXT2SQL
+      table: DIM_FAKE_PRODUCT
+    dimensions:
+      - name: ARTICLE
+        expr: ARTICLE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - P001
+          - P002
+          - P003
+        description: Unique product identifier code
+        synonyms:
+          - item
+          - product
+          - product_code
+          - product_id
+          - product_number
+          - sku
+          - stock_keeping_unit
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_ARTICLE
+      - name: ARTICLE_DESCRIPTION
+        expr: ARTICLE_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Premium Organic Coffee Beans - Dark Roast 500g
+          - Fair Trade Tea Assortment - 50 Tea Bags
+          - Sparkling Mineral Water - 6 Pack
+        description: Name and description of the product
+        synonyms:
+          - product_description
+          - item_description
+          - article_info
+          - product_info
+          - item_info
+          - description
+          - product_details
+          - article_details
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_ARTICLE_DESC
+      - name: DEPARTMENT
+        expr: DEPARTMENT
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - D01
+          - D02
+          - D03
+        description: Department code where the product belongs
+        synonyms:
+          - division
+          - section
+          - unit
+          - branch
+          - sector
+          - group
+          - category
+          - classification
+          - department_name
+          - department_code
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_DEPARTMENT
+      - name: DEPARTMENT_DESCRIPTION
+        expr: DEPARTMENT_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Food & Beverages
+          - Alcoholic Beverages
+          - Tobacco Products
+        description: Description of the department
+        synonyms:
+          - dept_description
+          - department_info
+          - department_details
+          - department_name
+          - department_title
+          - department_label
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_DEPARTMENT_DESC
+      - name: BRAND
+        expr: BRAND
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - B001
+          - B002
+          - B003
+        description: Brand code of the product
+        synonyms:
+          - maker
+          - manufacturer
+          - label
+          - trademark
+          - nameplate
+          - marque
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_BRAND
+      - name: BRAND_DESCRIPTION
+        expr: BRAND_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Mountain Brew
+          - TeaHaven
+          - AquaPure
+        description: Description of the brand
+        synonyms:
+          - brand_info
+          - brand_details
+          - brand_profile
+          - brand_overview
+          - brand_summary
+          - brand_characteristics
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_BRAND_DESC
+      - name: SUBCATEGORY
+        expr: SUBCATEGORY
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - SC01
+          - SC02
+          - SC03
+        description: Subcategory code for the product
+        synonyms:
+          - subcategory_name
+          - subcategory_type
+          - subcategory_label
+          - subcategory_code
+          - subcategory_classification
+          - subcategory_group
+          - subcategory_identifier
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_SUBCATEGORY
+      - name: SUBCATEGORY_DESCRIPTION
+        expr: SUBCATEGORY_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Coffee
+          - Tea
+          - Water
+        description: Description of the subcategory
+        synonyms:
+          - subcategory_text
+          - subcategory_info
+          - subcategory_details
+          - subcategory_explanation
+          - subcategory_note
+          - subcategory_comment
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_SUBCATEGORY_DESC
+      - name: CATEGORY
+        expr: CATEGORY
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - C01
+          - C02
+          - C03
+        description: Category code for the product
+        synonyms:
+          - group
+          - classification
+          - type
+          - kind
+          - genre
+          - section
+          - division
+          - class
+          - category_name
+          - product_category
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_CATEGORY
+      - name: CATEGORY_DESCRIPTION
+        expr: CATEGORY_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Beverages
+          - Bakery
+          - Cereals
+        description: Description of the category
+        synonyms:
+          - category_info
+          - category_details
+          - category_explanation
+          - category_definition
+          - category_text
+          - category_note
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_CATEGORY_DESC
+      - name: VENDOR
+        expr: VENDOR
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - V001
+          - V002
+          - V003
+        description: Vendor code for the product supplier
+        synonyms:
+          - supplier
+          - provider
+          - manufacturer
+          - seller
+          - merchant
+          - distributor
+          - trader
+          - dealer
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_VENDOR
+      - name: VENDOR_DESCRIPTION
+        expr: VENDOR_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Global Foods Inc.
+          - Premium Selections Ltd.
+          - Craft Beverage Distributors
+        description: Name of the vendor/supplier
+        synonyms:
+          - supplier_info
+          - vendor_details
+          - provider_description
+          - seller_info
+          - merchant_description
+          - distributor_description
+          - manufacturer_info
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_VENDOR_DESC
+      - name: VN_VENDOR
+        expr: VN_VENDOR
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - VN001
+          - VN002
+          - VN003
+        description: Alternate vendor code
+        synonyms:
+          - vendor_name
+          - supplier_name
+          - provider_name
+          - external_vendor
+          - third_party_vendor
+          - partner_vendor
+          - external_supplier
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_VN_VENDOR
+      - name: VN_VENDOR_DESCRIPTION
+        expr: VN_VENDOR_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Global Foods International
+          - Premium Selections International
+          - Craft Beverage Import/Export
+        description: Alternate vendor name description
+        synonyms:
+          - vendor_name_description
+          - supplier_info
+          - provider_details
+          - vn_vendor_info
+          - vendor_profile_description
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_VN_VENDOR_DESC
+      - name: SALES_UNIT
+        expr: SALES_UNIT
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - EA
+        description: Unit of measure for sales (KG, EA, UNK-UNK)
+        synonyms:
+          - unit_sold
+          - sales_quantity
+          - quantity_sold
+          - unit_of_sale
+          - sales_measurement
+          - quantity_per_sale
+          - sales_unit_of_measure
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_PROD_SALES_UNIT
+    description: A synthetic product dimension table containing all product attributes such as Article ID, descriptions, department, brand, category, subcategory, and vendor information.
+    synonyms:
+      - DIM_FAKE_PRODUCT
+      - DIM_PRODUCT
+      - PRODUCT_DIM
+      - PRODUCT_INFO
+      - PRODUCT_DETAILS
+      - PRODUCT_MASTER
+      - PRODUCT_REFERENCE
+      - PRODUCT_CATALOG
+    primary_key:
+      columns:
+        - ARTICLE
+  - name: FAKE_FACT_SALES
+    base_table:
+      database: QUANTIUM_DEMO
+      schema: TEXT2SQL
+      table: FAKE_FACT_SALES
+    dimensions:
+      - name: ARTICLE
+        expr: ARTICLE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - P001
+          - P002
+          - P003
+        description: Product identifier that links to dim_product
+        synonyms:
+          - item
+          - product
+          - good
+          - merchandise
+          - commodity
+          - object
+          - entry
+          - listing
+      - name: SITE
+        expr: SITE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - US002
+          - US003
+          - CA001
+        description: Store identifier that links to dim_site
+        synonyms:
+          - location
+          - facility
+          - venue
+          - outlet
+          - store
+          - branch
+          - depot
+          - warehouse
+          - premises
+      - name: FISCAL_WEEK
+        expr: FISCAL_WEEK
+        data_type: NUMBER(38,0)
+        sample_values:
+          - '202533'
+          - '202534'
+          - '202535'
+        description: Fiscal week identifier
+        synonyms:
+          - week_of_year
+          - financial_week
+          - accounting_week
+          - fiscal_week
+          - week_number
+      - name: FISCAL_YEAR
+        expr: FISCAL_YEAR
+        data_type: NUMBER(38,0)
+        sample_values:
+          - '2025'
+          - '2021'
+          - '2022'
+        description: Fiscal year 
+        synonyms:
+          - financial_year
+          - budget_year
+          - tax_year
+          - accounting_year
+      - name: FISCAL_PERIOD
+        expr: FISCAL_PERIOD
+        data_type: NUMBER(38,0)
+        sample_values:
+          - '2025008'
+          - '2025009'
+          - '2025010'
+        description: Fiscal period which is also called fiscal month
+        synonyms:
+          - accounting_period
+          - financial_period
+          - budget_period
+          - reporting_period
+          - financial_month
+          - financial_period
+    time_dimensions:
+      - name: CALENDAR_DAY
+        expr: CALENDAR_DAY
+        data_type: DATE
+        sample_values:
+          - '2025-02-12'
+          - '2025-02-10'
+          - '2025-02-11'
+        description: Date of the sales record.  This supports calendar requests but not fiscal requests
+        synonyms:
+          - date
+          - calendar_date
+          - day
+          - daily_date
+          - date_key
+          - calendar_key
+          - daily_key
+    facts:
+      - name: SALES
+        expr: SALES
+        data_type: NUMBER(38,2)
+        sample_values:
+          - '187.73'
+          - '276.48'
+          - '528.08'
+        description: Total sales amount in currency
+        synonyms:
+          - revenue
+          - turnover
+          - total_sales
+          - sales_amount
+          - sales_figure
+          - sales_value
+          - sales_total
+          - sales_volume
+      - name: AVG_PRICE
+        expr: AVG_PRICE
+        data_type: NUMBER(38,16)
+        sample_values:
+          - '2.0366666666666660'
+          - '2.0570909090909093'
+          - '2.0621428571428570'
+        description: Average price per unit
+        synonyms:
+          - average_price
+          - mean_price
+          - price_average
+          - average_cost
+          - mean_cost
+          - average_value
+      - name: PROFIT
+        expr: PROFIT
+        data_type: NUMBER(38,2)
+        sample_values:
+          - '28.85'
+          - '25.64'
+          - '120.71'
+        description: Profit amount in currency
+        synonyms:
+          - gain
+          - earnings
+          - net_income
+          - revenue
+          - surplus
+          - margin
+          - return_on_investment
+          - roi
+          - financial_gain
+      - name: SALES_QTY
+        expr: SALES_QTY
+        data_type: NUMBER(38,0)
+        sample_values:
+          - '66'
+          - '58'
+          - '134'
+        description: Quantity of items sold
+        synonyms:
+          - quantity_sold
+          - units_sold
+          - sales_quantity
+          - items_sold
+          - volume_sold
+          - sales_volume
+      - name: NUM_RECORDS
+        expr: NUM_RECORDS
+        data_type: NUMBER(38,0)
+        sample_values:
+          - '5'
+          - '4'
+          - '6'
+        description: Number of transaction records aggregated
+        synonyms:
+          - record_count
+          - total_records
+          - number_of_records
+          - count_of_records
+          - total_rows
+          - row_count
+    description: A synthetic sales fact table containing transactional data including Article ID, Site ID, sales amount, quantity sold, profit, average price, and time dimensions (fiscal periods and calendar dates).
+    synonyms:
+      - FAKE_SALES_DIM
+      - SALES_DIMENSION
+      - SALES_DATA
+      - SALES_INFO
+      - SALES_TABLE
+      - FAKE_SALES_DATA
+      - SALES_DIM
+      - DIM_SALES
+      - SALES_DIMENSION_TABLE
+    primary_key:
+      columns:
+        - SITE
+        - ARTICLE
+  - name: DIM_FAKE_SITE
+    base_table:
+      database: QUANTIUM_DEMO
+      schema: TEXT2SQL
+      table: DIM_FAKE_SITE
+    dimensions:
+      - name: SITE
+        expr: SITE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - US001
+          - US002
+          - US003
+        description: Unique store/location identifier
+        synonyms:
+          - location
+          - facility
+          - venue
+          - place
+          - premises
+          - establishment
+          - outlet
+          - store
+          - branch
+          - office
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_SITE
+      - name: SITE_DESCRIPTION
+        expr: SITE_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Downtown Seattle Flagship
+          - Miami Beach Resort
+          - Chicago Magnificent Mile
+        description: Name of the store/location
+        synonyms:
+          - site_info
+          - site_details
+          - location_description
+          - site_characteristics
+          - facility_description
+          - site_attributes
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_SITE_DESC
+      - name: STATE
+        expr: STATE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - WA
+          - FL
+          - IL
+        description: State code where the site is located
+        synonyms:
+          - province
+          - territory
+          - region
+          - area
+          - jurisdiction
+          - location
+          - geographical_area
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_STATE
+      - name: STATE_DESCRIPTION
+        expr: STATE_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Washington
+          - Florida
+          - Illinois
+        description: Full name of the state
+        synonyms:
+          - state_info
+          - state_details
+          - state_explanation
+          - state_note
+          - state_comment
+          - state_text
+          - state_definition
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_STATE_DESC
+      - name: AREA
+        expr: AREA
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - PNW
+          - SE
+          - MW
+        description: Area code for the site location
+        synonyms:
+          - region
+          - zone
+          - district
+          - territory
+          - sector
+          - locale
+          - neighborhood
+          - vicinity
+          - location
+          - geographic_area
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_AREA
+      - name: AREA_DESCRIPTION
+        expr: AREA_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Pacific Northwest
+          - Southeast
+          - Midwest
+        description: Description of the area
+        synonyms:
+          - area_info
+          - geographic_area_description
+          - area_details
+          - regional_area_description
+          - location_area_description
+          - area_text
+          - area_definition
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_AREA_DESC
+      - name: REGION
+        expr: REGION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - WEST
+          - SOUTH
+          - CENTRAL
+        description: Region code for the site
+        synonyms:
+          - area
+          - territory
+          - district
+          - zone
+          - sector
+          - province
+          - county
+          - state
+          - division
+          - geographic_area
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_REGION
+      - name: REGION_DESCRIPTION
+        expr: REGION_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Western United States
+          - Southern United States
+          - Central United States
+        description: Description of the region
+        synonyms:
+          - region_info
+          - geographic_area_description
+          - regional_details
+          - area_description
+          - territory_info
+          - regional_definition
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_REGION_DESC
+      - name: ZONE
+        expr: ZONE
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - NW
+          - SE
+          - NC
+        description: Zone code for the site
+        synonyms:
+          - area
+          - district
+          - geographic_area
+          - location
+          - region
+          - sector
+          - territory
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_ZONE
+      - name: ZONE_DESCRIPTION
+        expr: ZONE_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Northwest Zone
+          - Southeast Zone
+          - North Central Zone
+        description: Description of the zone
+        synonyms:
+          - zone_info
+          - zone_details
+          - geographic_zone_description
+          - area_zone_description
+          - regional_zone_info
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_ZONE_DESC
+      - name: CITY
+        expr: CITY
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Seattle
+          - Miami
+          - Chicago
+        description: City where the site is located
+        synonyms:
+          - town
+          - municipality
+          - metropolis
+          - urban_area
+          - metropolitan_area
+          - city_name
+          - city_location
+          - urban_center
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_CITY
+      - name: COUNTRY
+        expr: COUNTRY
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - US
+          - CA
+        description: Country code where the site is located
+        synonyms:
+          - nation
+          - land
+          - territory
+          - state
+          - homeland
+          - nationality
+          - region
+          - area
+          - locale
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_COUNTRY
+      - name: COUNTRY_DESCRIPTION
+        expr: COUNTRY_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - United States
+          - Canada
+        description: Full name of the country
+        synonyms:
+          - country_name
+          - nation_description
+          - geographical_area_description
+          - territorial_description
+          - national_description
+          - land_description
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_COUNTRY_DESC
+      - name: SALES_DISTRICT
+        expr: SALES_DISTRICT
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - SD45
+          - SD23
+          - SD12
+        description: Sales district code
+        synonyms:
+          - sales_area
+          - sales_region
+          - sales_territory
+          - district_code
+          - sales_zone
+          - geographic_area
+          - territory_code
+          - regional_area
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_SALES_DISTRICT
+      - name: SALES_DISTRICT_DESCRIPTION
+        expr: SALES_DISTRICT_DESCRIPTION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - Seattle Metro District
+          - South Florida District
+          - Greater Chicago District
+        description: Description of the sales district
+        synonyms:
+          - sales_area_description
+          - sales_territory_description
+          - district_sales_description
+          - sales_region_description
+          - sales_zone_description
+        cortex_search_service:
+          service: SEARCH_QUANTIUM_SITE_SALES_DISTRICT_DESC
+    description: A synthetic site/store dimension table containing store locations and their attributes such as Site ID, descriptions, geographic information (city, state, region, zone, country), and sales district details.
+    synonyms:
+      - location
+      - site
+      - facility
+      - premises
+      - outlet
+      - store
+      - branch
+      - office
+      - depot
+      - warehouse
+    primary_key:
+      columns:
+        - SITE
+relationships:
+  - name: sales_product
+    join_type: inner
+    left_table: DIM_FAKE_PRODUCT
+    relationship_columns:
+      - left_column: ARTICLE
+        right_column: ARTICLE
+    right_table: FAKE_FACT_SALES
+    relationship_type: one_to_one
+  - name: sales_sites
+    join_type: inner
+    relationship_type: one_to_one
+    left_table: DIM_FAKE_SITE
+    relationship_columns:
+      - left_column: SITE
+        right_column: SITE
+    right_table: FAKE_FACT_SALES
+custom_instructions: |
+  1) If the user states they want to see Sales and doesn't specify quantity vs value / revenue then assume they want value.
+  2) Round all facts to 2 decimal places.  (Round at the aggregated level not at the row level)
+  3) For profit margin, gross profit, and other similar metrics, multiply the result by 100 to get a percentage.  (i.e. a profit margin of 0.2521 should appear is 25.21)
+  4) The table fake_fact_sales has the sales date information.  It has four different date related columns.  This is how to use these columns: 
+    a) Your first task is to determine if the user is asking for "calendar" (i.e gregorian) or "fiscal" (i.e. fiscal, retail or FY calendar) information.
+    b) Never mix and match "calendar" and "fiscal" queries or information.  If any part of their question is fiscal, then all parts are fiscal. 
+    c) Here are the rules to determine if a user wants calendar information vs fiscal information
+       i) If the request include any terms like fiscal or FY then that means only use fiscal year, fiscal quarter, fiscal month and or fiscal week.  Only use financial columns
+       ii) If the user mentions year, quarter, or week and didn't mention month and if they didn't use the term "calendar" then assume they are referring to the financial calendar and so only use financial columns 
+       ii) If the user mentions a month or a month and year this could be could either be calendar or fiscal. If they mention any fiscal or FY terms, it is fiscal.  Otherwise, assume it is calendar year and calendar month
+    d) There are four date related columns in the sales table.  You only ever need to use one of these columns.  To determine which date columns to use from the sales table:
+       i) If the granularity is fiscal year, then only use the fiscal year column.  
+       ii) If the granularity is fiscal quarter or fiscal period, then only use the fiscal period column. 
+       iii) If the granularity is fiscal week, then only use the fiscal week column. 
+       iv) For all queries that are based on the normal gregorical calendar then use the calendar_day column. 
+    The calendar_day is the actual sales date and can only support calendar requests.  It should not be used for any fiscal requests.
+    e) There are fiscal year (FISCAL_YEAR), fiscal month / period (FISCAL_PERIOD), and fiscal week (FISCAL_WEEK) columns.  You can use the fiscal_period to support fiscal quarter requests. 
+    f) Fiscal year - should be used when it is not specified whether it is calendar or fiscal year.  So, whenever the users mentions a year, use the fiscal year unless they specify to use the calendar year
+    g) Fiscal Period has the same meaning as fiscal month. Note that a fiscal month is not a calendar month.  
+    h) Fiscal period (FISCAL_PERIOD) are always 7 digits long.  
+        The first 4 digits are the fiscal year
+        The last 3 digits are the fiscal month
+       FISCAL_PERIOD 2022001 is "Fiscal 2022 July" (Also might be called FY 2022 July or FY2022 Fiscal July)
+       FISCAL_PERIOD 2022002 is "Fiscal 2022 August"
+       FISCAL_PERIOD 2022003 is "Fiscal 2022 September"      
+       FISCAL_PERIOD 2022004 is "Fiscal 2022 October"
+       FISCAL_PERIOD 2022005 is "Fiscal 2022 November"
+       FISCAL_PERIOD 2022006 is "Fiscal 2022 December"
+       FISCAL_PERIOD 2022007 is "Fiscal 2022 January"
+       FISCAL_PERIOD 2022008 is "Fiscal 2022 February"
+       FISCAL_PERIOD 2022009 is "Fiscal 2022 March"
+       FISCAL_PERIOD 2022010 is "Fiscal 2022 April"
+       FISCAL_PERIOD 2022011 is "Fiscal 2022 May"
+       FISCAL_PERIOD 2022012 is "Fiscal 2022 June"
+    i) These are all synonyms for the same fiscal period: 2022001, Fiscal 2022 July, FY22 July, Fiscal July 2022, Fiscal 2022 Fiscal July.  FY22 Fiscal July
+    j) Fiscal weeks line up with the fiscal calendar.  So for example fiscal week 202210 is the tenth week of fiscal year 2022 
+    k) Financial quarters can be determined by looking at the financial month column (i.e. FISCAL_PERIOD).  As an example Fiscal Q1 in FY 2022 would include the periods 2022001 (i.e. FY July FY2022), 2022002, and 202203 
+    l) Don't show any calendar or fiscal dates in the results / select clause unless the user asks to see it or asks that the data is grouped by it.  (e.g. don't show start date and end date unless the user asks)
+    m) Return all fiscal dates (i.e. fiscal year, quarter, and week) converted a string rather than as a number

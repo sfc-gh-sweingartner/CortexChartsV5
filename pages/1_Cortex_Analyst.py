@@ -140,8 +140,11 @@ def display_semantic_model_columns(model_path: str):
             # For development and testing - try to read directly from local file system
             with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
                 yaml_content = f.read()
+                st.sidebar.success(f"Read YAML file from local path: Dev/{file_path.split('/')[-1]}")
         except FileNotFoundError:
             # If local file not found, try using Snowpark to read from stage
+            st.sidebar.info(f"Attempting to read from Snowflake stage: {file_path}")
+            
             # Handle different path formats more robustly
             parts = file_path.split('/')
             if len(parts) >= 2:
@@ -166,6 +169,7 @@ def display_semantic_model_columns(model_path: str):
                     query = f"""
                     SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
                     """
+                    st.sidebar.info(f"Executing query: {query}")
                     result = session.sql(query).collect()
                     if result and len(result) > 0:
                         yaml_content = result[0][0]
@@ -174,6 +178,7 @@ def display_semantic_model_columns(model_path: str):
                         alt_query = f"""
                         SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
                         """
+                        st.sidebar.info(f"Trying alternative query: {alt_query}")
                         try:
                             result = session.sql(alt_query).collect()
                             if result and len(result) > 0:
@@ -187,6 +192,15 @@ def display_semantic_model_columns(model_path: str):
             else:
                 raise ValueError(f"Invalid stage path format: {file_path}")
         
+        # Debug the YAML content to see if it has a tables section
+        if yaml_content:
+            # Show the first 500 characters to verify content
+            st.sidebar.info(f"YAML content preview: {yaml_content[:500]}...")
+            
+            # Check for 'tables:' in the content
+            if 'tables:' not in yaml_content:
+                st.sidebar.warning("'tables:' section not found in YAML content")
+        
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
         tables = parser.parse()
@@ -195,31 +209,7 @@ def display_semantic_model_columns(model_path: str):
         if "selected_columns" not in st.session_state:
             st.session_state.selected_columns = set()
         
-        # Display model information if available
-        if tables:
-            st.markdown("### Semantic Model Columns")
-            st.write(f"**Tables:** {len(tables)}")
-            
-            # Create filter options for column types
-            col_type_filter = st.multiselect(
-                "Filter by column type:",
-                ["Dimensions", "Facts", "Time Dimensions"],
-                default=["Dimensions", "Facts", "Time Dimensions"],
-                key="column_type_filter"
-            )
-            
-            # Map the filter options to ColumnType enum values
-            type_map = {
-                "Dimensions": ColumnType.DIMENSION,
-                "Facts": ColumnType.FACT,
-                "Time Dimensions": ColumnType.TIME_DIMENSION
-            }
-            
-            # Filter columns by type
-            filtered_types = [type_map[t] for t in col_type_filter]
-            
-            # Optional search box for columns
-            search_term = st.text_input("Search columns:", key="column_search").lower()
+        st.markdown("### Available Columns")
         
         # Add custom CSS for tooltips
         st.markdown("""
@@ -256,25 +246,8 @@ def display_semantic_model_columns(model_path: str):
         
         # Create an expander for each table
         for table in sorted(tables, key=lambda x: x.name):
-            # Filter columns in this table based on selected types
-            table_columns = [col for col in table.columns if col.column_type in filtered_types]
-            
-            # Apply search filter if provided
-            if search_term:
-                table_columns = [col for col in table_columns if search_term in col.name.lower() or 
-                                (col.description and search_term in col.description.lower())]
-            
-            # Skip empty tables after filtering
-            if not table_columns:
-                continue
-                
             with st.expander(f"📊 {table.name}", expanded=False):
-                # Show table description if available
-                if table.description:
-                    st.markdown(f"*{table.description}*")
-                
-                # Create a container for the columns
-                for col in table_columns:
+                for col in table.columns:
                     # Create unique key for checkbox
                     col_key = f"{table.name}.{col.name}"
                     
@@ -282,21 +255,27 @@ def display_semantic_model_columns(model_path: str):
                     type_display = col.column_type.value.replace('_', ' ').title()
                     description = col.description or "No description available"
                     
-                    # Add icon based on column type
-                    icon = "🔢" if col.column_type == ColumnType.FACT else "📅" if col.column_type == ColumnType.TIME_DIMENSION else "📝"
-                    
-                    # Add sample values if available
-                    sample_text = ""
-                    if col.sample_values and len(col.sample_values) > 0:
-                        samples = ", ".join([str(v) for v in col.sample_values[:3]])
-                        sample_text = f"\n<strong>Examples:</strong> {samples}"
+                    # Format the tooltip content in HTML
+                    tooltip_html = f"""
+                    <div class="column-tooltip">
+                        <input type="checkbox" id="col_{col_key}" 
+                            {'checked' if col_key in st.session_state.selected_columns else ''} 
+                            onchange="this.dispatchEvent(new Event('input'))">
+                        <label for="col_{col_key}">{col.name}</label>
+                        <div class="tooltip-text">
+                            <strong>Type:</strong> {type_display}<br>
+                            <strong>Data Type:</strong> {col.data_type}<br>
+                            <strong>Description:</strong> {description}
+                        </div>
+                    </div>
+                    """
                     
                     # Use a single column instead of split columns and handle the checkbox state
                     checked = st.checkbox(
-                        f"{icon} {col.name}",
+                        col.name,
                         key=f"col_{col_key}",
                         value=col_key in st.session_state.selected_columns,
-                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}{sample_text}"
+                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}"
                     )
                     
                     # Update the selection state
@@ -320,55 +299,23 @@ def display_semantic_model_columns(model_path: str):
                 
                 # Get or initialize operation settings
                 if col_key not in st.session_state.column_operations:
-                    # Default operation based on column type
-                    default_op = "Group By"
-                    for table in tables:
-                        if table.name == table_name:
-                            for col in table.columns:
-                                if col.name == col_name:
-                                    if col.column_type == ColumnType.FACT:
-                                        default_op = "Sum"
-                                    elif col.column_type == ColumnType.TIME_DIMENSION:
-                                        default_op = "Group By"
-                                    break
-                            break
-                            
                     st.session_state.column_operations[col_key] = {
-                        "results": default_op,
+                        "results": "Group By",
                         "filter": "Don't Filter"
                     }
                 
-                # Determine available operations based on column type
-                col_type = None
-                for table in tables:
-                    if table.name == table_name:
-                        for col in table.columns:
-                            if col.name == col_name:
-                                col_type = col.column_type
-                                break
-                        break
-                
-                # Different operation options based on column type
-                if col_type == ColumnType.FACT:
-                    operations = ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"]
-                elif col_type == ColumnType.TIME_DIMENSION:
-                    operations = ["Group By", "Count", "Don't Show"]
-                else:  # Dimension
-                    operations = ["Group By", "Count", "Don't Show"]
-                
                 operations_data.append({
-                    "Table": table_name,
                     "Column": col_name,
                     "Results": st.selectbox(
-                        f"Results for {table_name}.{col_name}",
-                        operations,
+                        f"Results for {col_name}",
+                        ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"],
                         key=f"results_{col_key}",
-                        index=operations.index(
+                        index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"].index(
                             st.session_state.column_operations[col_key]["results"]
-                        ) if st.session_state.column_operations[col_key]["results"] in operations else 0
+                        )
                     ),
                     "Filter": st.text_input(
-                        f"Filter for {table_name}.{col_name}",
+                        f"Filter for {col_name}",
                         value=st.session_state.column_operations[col_key]["filter"],
                         key=f"filter_{col_key}"
                     )
@@ -383,36 +330,10 @@ def display_semantic_model_columns(model_path: str):
             # Add Generate Prompt button
             if st.button("Generate Prompt"):
                 prompt = generate_prompt_from_selections()
-                # Store the prompt in session state
+                # Store the prompt in session state to display in the chat input
                 st.session_state.generated_prompt = prompt
-                
-                # Use a hidden container to store the prompt
-                st.session_state.prompt_text = prompt
-                
-                # Try to inject JavaScript to set the chat input field value
-                js_code = f"""
-                <script>
-                    // Wait for the page to finish loading
-                    window.addEventListener('load', function() {{
-                        // Give a short delay for elements to render
-                        setTimeout(function() {{
-                            // Try to find the chat input field
-                            const chatInputs = document.querySelectorAll('textarea');
-                            const chatInput = Array.from(chatInputs).find(el => 
-                                el.placeholder && el.placeholder.includes('question')
-                            );
-                            
-                            if (chatInput) {{
-                                // Set the value and trigger an input event
-                                chatInput.value = `{prompt}`;
-                                chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                                chatInput.focus();
-                            }}
-                        }}, 500);
-                    }});
-                </script>
-                """
-                st.components.v1.html(js_code, height=0)
+                st.success(f"Prompt generated: {prompt}")
+                # Don't auto-run the prompt, just update the session state
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -473,18 +394,22 @@ def generate_prompt_from_selections() -> str:
 
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
-    # Get the generated prompt if it exists
+    # If we have a generated prompt, use it as the default
     default_input = st.session_state.get("generated_prompt", "")
     
-    # Handle chat input
+    # Handle chat input (without the value parameter)
     user_input = st.chat_input("What is your question?", key="chat_input")
+    
+    # If there's a generated prompt and the user hasn't typed anything, show it in the chat input
+    if default_input and not user_input:
+        # We can't directly set the value of chat_input, but we can show it to the user
+        st.info(f"Generated prompt is ready to use: **{default_input}**")
     
     # Process user input when provided
     if user_input:
         process_user_input(user_input)
         # Clear the generated prompt after it's been used
-        if "generated_prompt" in st.session_state:
-            del st.session_state.generated_prompt
+        st.session_state.generated_prompt = None
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:
         suggestion = st.session_state.active_suggestion

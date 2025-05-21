@@ -5,8 +5,8 @@ This module provides functionality to parse Snowflake semantic model YAML files
 and extract column metadata for use in the Cortex Analyst UI.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 import yaml
 from enum import Enum
 
@@ -24,18 +24,6 @@ class Column:
     data_type: str
     column_type: ColumnType
     expr: str
-    synonyms: List[str] = field(default_factory=list)
-    sample_values: List[Any] = field(default_factory=list)
-
-@dataclass
-class Relationship:
-    """Represents a relationship between tables in the semantic model."""
-    name: str
-    from_table: str
-    to_table: str
-    from_column: str
-    to_column: str
-    join_type: str = "inner"
 
 @dataclass
 class Table:
@@ -43,8 +31,6 @@ class Table:
     name: str
     description: Optional[str]
     columns: List[Column]
-    base_table: Optional[Dict[str, str]] = None
-    relationships: List[Relationship] = field(default_factory=list)
 
 class SemanticModelParser:
     """Parser for Snowflake semantic model YAML files."""
@@ -57,7 +43,6 @@ class SemanticModelParser:
         """
         self.yaml_content = yaml_content
         self.tables: List[Table] = []
-        self.errors: List[str] = []
 
     def parse(self) -> List[Table]:
         """Parse the YAML content and return list of tables with their columns.
@@ -71,14 +56,10 @@ class SemanticModelParser:
         try:
             data = yaml.safe_load(self.yaml_content)
         except yaml.YAMLError as e:
-            error_msg = f"Invalid YAML format: {str(e)}"
-            self.errors.append(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError(f"Invalid YAML format: {str(e)}")
 
         if not isinstance(data, dict):
-            error_msg = "Invalid semantic model: root must be a dictionary"
-            self.errors.append(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError("Invalid semantic model: root must be a dictionary")
 
         # If data starts with a document marker (---), the actual content might be in a nested structure
         if "tables" not in data:
@@ -93,32 +74,12 @@ class SemanticModelParser:
             if not found_tables:
                 # Print first 100 chars of yaml_content to debug
                 preview = self.yaml_content[:500] if isinstance(self.yaml_content, str) else str(self.yaml_content)[:500]
-                error_msg = f"Invalid semantic model: 'tables' section is required. YAML preview: {preview}..."
-                self.errors.append(error_msg)
-                raise ValueError(error_msg)
+                raise ValueError(f"Invalid semantic model: 'tables' section is required. YAML preview: {preview}...")
 
-        # Parse relationships at model level if they exist
-        model_relationships = []
-        if "relationships" in data:
-            try:
-                model_relationships = self._parse_relationships(data["relationships"])
-            except Exception as e:
-                self.errors.append(f"Error parsing model-level relationships: {str(e)}")
-
-        # Parse tables
         for table_data in data["tables"]:
-            try:
-                self._validate_table_data(table_data)
-                table = self._parse_table(table_data)
-                
-                # Add model-level relationships that apply to this table
-                for rel in model_relationships:
-                    if rel.from_table == table.name:
-                        table.relationships.append(rel)
-                
-                self.tables.append(table)
-            except Exception as e:
-                self.errors.append(f"Error parsing table '{table_data.get('name', 'unknown')}': {str(e)}")
+            self._validate_table_data(table_data)
+            table = self._parse_table(table_data)
+            self.tables.append(table)
 
         return self.tables
 
@@ -148,9 +109,6 @@ class SemanticModelParser:
         """
         columns = []
         
-        # Parse base table info if available
-        base_table = table_data.get("base_table")
-        
         # Parse dimensions
         if "dimensions" in table_data:
             for dim in table_data["dimensions"]:
@@ -171,57 +129,12 @@ class SemanticModelParser:
 
         # Sort columns alphabetically by name
         columns.sort(key=lambda x: x.name)
-        
-        # Parse relationships for this table
-        relationships = []
-        if "relationships" in table_data:
-            try:
-                relationships = self._parse_relationships(table_data["relationships"], from_table=table_data["name"])
-            except Exception as e:
-                self.errors.append(f"Error parsing relationships for table '{table_data['name']}': {str(e)}")
 
         return Table(
             name=table_data["name"],
             description=table_data.get("description"),
-            columns=columns,
-            base_table=base_table,
-            relationships=relationships
+            columns=columns
         )
-
-    def _parse_relationships(self, relationships_data: List[Dict], from_table: Optional[str] = None) -> List[Relationship]:
-        """Parse relationship data into Relationship objects.
-        
-        Args:
-            relationships_data: List of dictionaries containing relationship definitions
-            from_table: Optional name of the table these relationships are defined on
-            
-        Returns:
-            List of Relationship objects
-        """
-        relationships = []
-        
-        for rel in relationships_data:
-            if not isinstance(rel, dict):
-                continue
-                
-            # Validate required fields
-            required_fields = ["name", "to_table", "to_column"]
-            if all(field in rel for field in required_fields):
-                # For table-level relationships, from_table is already known
-                # For model-level relationships, from_table and from_column must be specified
-                if from_table is None and ("from_table" not in rel or "from_column" not in rel):
-                    continue
-                
-                relationships.append(Relationship(
-                    name=rel["name"],
-                    from_table=from_table or rel["from_table"],
-                    to_table=rel["to_table"],
-                    from_column=rel.get("from_column", ""),
-                    to_column=rel["to_column"],
-                    join_type=rel.get("join_type", "inner")
-                ))
-                
-        return relationships
 
     def _validate_column_data(self, column_data: Dict, column_type: str) -> None:
         """Validate column data has required fields.
@@ -251,41 +164,10 @@ class SemanticModelParser:
         Returns:
             Column object with parsed metadata
         """
-        synonyms = column_data.get("synonyms", [])
-        sample_values = column_data.get("sample_values", [])
-        
         return Column(
             name=column_data["name"],
             description=column_data.get("description"),
             data_type=column_data["data_type"],
             column_type=column_type,
-            expr=column_data["expr"],
-            synonyms=synonyms,
-            sample_values=sample_values
-        )
-
-    def get_columns_by_type(self, column_type: ColumnType) -> Dict[str, List[Column]]:
-        """Get all columns of a specific type, grouped by table.
-        
-        Args:
-            column_type: Type of columns to retrieve
-            
-        Returns:
-            Dictionary mapping table names to lists of columns
-        """
-        result: Dict[str, List[Column]] = {}
-        
-        for table in self.tables:
-            table_columns = [col for col in table.columns if col.column_type == column_type]
-            if table_columns:
-                result[table.name] = table_columns
-                
-        return result
-    
-    def get_errors(self) -> List[str]:
-        """Get any errors encountered during parsing.
-        
-        Returns:
-            List of error messages
-        """
-        return self.errors 
+            expr=column_data["expr"]
+        ) 

@@ -122,7 +122,7 @@ def show_header_and_sidebar():
         
         # Center this button
         _, btn_container, _ = st.columns([2, 6, 2])
-        if btn_container.button("Clear Chat History", use_container_width=True):
+        if btn_container.button("Clear Chat History", use_container_width=True, type="primary"):
             reset_session_state()
 
 
@@ -322,33 +322,32 @@ def display_semantic_model_columns(model_path: str):
                 }
             
             # Add Generate Prompt button and editable prompt area
-            col1, col2 = st.columns([3, 1])
-            with col2:
-                if st.button("Generate Prompt", use_container_width=True):
-                    prompt = generate_prompt_from_selections()
-                    # Store the prompt in session state to display in the editable area
-                    st.session_state.generated_prompt = prompt
-                    st.rerun()  # Rerun to show the text area
+            # Full width Generate Prompt button
+            if st.button("Generate Prompt", use_container_width=True, type="primary"):
+                prompt = generate_prompt_from_selections()
+                # Store the prompt in session state to display in the editable area
+                st.session_state.generated_prompt = prompt
+                st.rerun()  # Rerun to show the text area
             
             # If we have a generated prompt, show an editable text area
             if st.session_state.get("generated_prompt"):
-                with col1:
-                    edited_prompt = st.text_area(
-                        "Edit your prompt before sending:",
-                        value=st.session_state.generated_prompt,
-                        height=100,
-                        key="edited_prompt"
-                    )
-                    
-                with col2:
-                    if st.button("Send to Chat", use_container_width=True):
-                        # Get the edited text from the text area
-                        prompt_to_send = st.session_state.edited_prompt
-                        # Set a flag to process this prompt
-                        st.session_state.prompt_to_process = prompt_to_send
-                        # Clear the generated prompt to hide the editor
-                        st.session_state.generated_prompt = None
-                        st.rerun()  # Rerun to process the prompt
+                # Full width text area, 50% taller
+                edited_prompt = st.text_area(
+                    "Edit your prompt before sending:",
+                    value=st.session_state.generated_prompt,
+                    height=150,  # Increased height by 50%
+                    key="edited_prompt"
+                )
+                
+                # Full width Send button below the text area
+                if st.button("Send to Chat", use_container_width=True, type="primary"):
+                    # Get the edited text from the text area
+                    prompt_to_send = st.session_state.edited_prompt
+                    # Set a flag to process this prompt
+                    st.session_state.prompt_to_process = prompt_to_send
+                    # Clear the generated prompt to hide the editor
+                    st.session_state.generated_prompt = None
+                    st.rerun()  # Rerun to process the prompt
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -713,7 +712,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if kpi_result:
                 # KPI tiles were already rendered by create_chart10
                 # Just show the "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     
@@ -914,7 +913,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if isinstance(alt_chart, pdk.Deck):
                 st.pydeck_chart(alt_chart)
                 # For maps (Chart 11), show "Open in Map Designer" button
-                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}"):
+                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}", type="primary"):
                     if "map_transfer" not in st.session_state:
                         st.session_state.map_transfer = {}
                     
@@ -951,7 +950,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             else:
                 st.altair_chart(alt_chart, use_container_width=True)
                 # For non-map charts (Chart 1-10), show "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     

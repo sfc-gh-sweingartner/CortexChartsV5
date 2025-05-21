@@ -298,9 +298,9 @@ def display_semantic_model_columns(model_path: str):
                     }
                 
                 operations_data.append({
-                    "Column": col_name,
+                    "Column": f"{table_name}.{col_name}",
                     "Results": st.selectbox(
-                        f"Results for {col_name}",
+                        f"Results for {table_name} {col_name}",
                         ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"],
                         key=f"results_{col_key}",
                         index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"].index(
@@ -308,7 +308,7 @@ def display_semantic_model_columns(model_path: str):
                         )
                     ),
                     "Filter": st.text_input(
-                        f"Filter for {col_name}",
+                        f"Filter for {table_name} {col_name}",
                         value=st.session_state.column_operations[col_key]["filter"],
                         key=f"filter_{col_key}"
                     )

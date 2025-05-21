@@ -135,40 +135,71 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Use Snowpark to read the file from the stage
-        # Handle different path formats more robustly
-        parts = file_path.split('/')
-        if len(parts) >= 2:
-            # Extract the database, schema, and stage parts
-            db_schema_parts = parts[0].split('.')
-            if len(db_schema_parts) >= 2:
-                database = db_schema_parts[0]
-                schema = db_schema_parts[1]
-                # The stage might be the third part of db_schema_parts or the second part of the path
-                if len(db_schema_parts) >= 3:
-                    stage_name = db_schema_parts[2]
+        # First try to read it using the raw file path
+        try:
+            # For development and testing - try to read directly from local file system
+            with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
+                yaml_content = f.read()
+                st.sidebar.success(f"Read YAML file from local path: Dev/{file_path.split('/')[-1]}")
+        except FileNotFoundError:
+            # If local file not found, try using Snowpark to read from stage
+            st.sidebar.info(f"Attempting to read from Snowflake stage: {file_path}")
+            
+            # Handle different path formats more robustly
+            parts = file_path.split('/')
+            if len(parts) >= 2:
+                # Extract the database, schema, and stage parts
+                db_schema_parts = parts[0].split('.')
+                if len(db_schema_parts) >= 2:
+                    database = db_schema_parts[0]
+                    schema = db_schema_parts[1]
+                    # The stage might be the third part of db_schema_parts or the second part of the path
+                    if len(db_schema_parts) >= 3:
+                        stage_name = db_schema_parts[2]
+                    else:
+                        stage_name = parts[1]
+                    
+                    # The file name is everything after the stage in the path
+                    if len(db_schema_parts) >= 3:
+                        file_name = '/'.join(parts[1:])
+                    else:
+                        file_name = '/'.join(parts[2:])
+                    
+                    # Use Snowpark SQL to read the file content
+                    query = f"""
+                    SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
+                    """
+                    st.sidebar.info(f"Executing query: {query}")
+                    result = session.sql(query).collect()
+                    if result and len(result) > 0:
+                        yaml_content = result[0][0]
+                    else:
+                        # Try an alternative query format for older Snowflake versions
+                        alt_query = f"""
+                        SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
+                        """
+                        st.sidebar.info(f"Trying alternative query: {alt_query}")
+                        try:
+                            result = session.sql(alt_query).collect()
+                            if result and len(result) > 0:
+                                yaml_content = result[0][0]
+                            else:
+                                raise ValueError(f"Could not read file from stage: {file_path}")
+                        except Exception as e:
+                            raise ValueError(f"Failed to read file with alternative method: {str(e)}")
                 else:
-                    stage_name = parts[1]
-                
-                # The file name is everything after the stage in the path
-                if len(db_schema_parts) >= 3:
-                    file_name = '/'.join(parts[1:])
-                else:
-                    file_name = '/'.join(parts[2:])
-                
-                # Use Snowpark SQL to read the file content
-                query = f"""
-                SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
-                """
-                result = session.sql(query).collect()
-                if result and len(result) > 0:
-                    yaml_content = result[0][0]
-                else:
-                    raise ValueError(f"Could not read file from stage: {file_path}")
+                    raise ValueError(f"Invalid database/schema format: {parts[0]}")
             else:
-                raise ValueError(f"Invalid database/schema format: {parts[0]}")
-        else:
-            raise ValueError(f"Invalid stage path format: {file_path}")
+                raise ValueError(f"Invalid stage path format: {file_path}")
+        
+        # Debug the YAML content to see if it has a tables section
+        if yaml_content:
+            # Show the first 500 characters to verify content
+            st.sidebar.info(f"YAML content preview: {yaml_content[:500]}...")
+            
+            # Check for 'tables:' in the content
+            if 'tables:' not in yaml_content:
+                st.sidebar.warning("'tables:' section not found in YAML content")
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
@@ -261,6 +292,8 @@ def display_semantic_model_columns(model_path: str):
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
+        import traceback
+        st.sidebar.error(f"Error details: {traceback.format_exc()}")
 
 
 def generate_prompt_from_selections() -> str:

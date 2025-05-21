@@ -61,8 +61,20 @@ class SemanticModelParser:
         if not isinstance(data, dict):
             raise ValueError("Invalid semantic model: root must be a dictionary")
 
+        # If data starts with a document marker (---), the actual content might be in a nested structure
         if "tables" not in data:
-            raise ValueError("Invalid semantic model: 'tables' section is required")
+            # Try to find tables in any of the nested dictionaries
+            found_tables = False
+            for key, value in data.items():
+                if isinstance(value, dict) and "tables" in value:
+                    data = value
+                    found_tables = True
+                    break
+            
+            if not found_tables:
+                # Print first 100 chars of yaml_content to debug
+                preview = self.yaml_content[:500] if isinstance(self.yaml_content, str) else str(self.yaml_content)[:500]
+                raise ValueError(f"Invalid semantic model: 'tables' section is required. YAML preview: {preview}...")
 
         for table_data in data["tables"]:
             self._validate_table_data(table_data)

@@ -346,43 +346,47 @@ def generate_prompt_from_selections() -> str:
     Returns:
         str: The generated prompt
     """
-    # Start with "Show me"
-    parts = ["Show me"]
+    parts = []
     
     # Add columns and their operations
     result_parts = []
     filter_parts = []
+    group_by_parts = []
     
     for col_key, ops in st.session_state.column_operations.items():
-        _, col_name = col_key.split(".")
+        table_name, col_name = col_key.split(".")
+        
+        # Format with table name included
+        qualified_col_name = f"{table_name} {col_name}"
+        
+        # Handle filters - collect them for the beginning of the prompt
+        if ops["filter"] and ops["filter"] != "Don't Filter":
+            filter_parts.append(f"{qualified_col_name} of {ops['filter']}")
         
         # Handle results
         if ops["results"] != "Don't Show":
             if ops["results"] == "Group By":
-                result_parts.append(col_name)
+                result_parts.append(qualified_col_name)
+                group_by_parts.append(qualified_col_name)
             else:
-                result_parts.append(f"{ops['results']} of {col_name}")
-        
-        # Handle filters
-        if ops["filter"] and ops["filter"] != "Don't Filter":
-            filter_parts.append(f"{col_name} is {ops['filter']}")
+                result_parts.append(f"{ops['results']} of {qualified_col_name}")
     
-    # Combine parts
-    parts.append(" and ".join(result_parts))
-    
+    # Start with filter parts if they exist (For the X of Y, ...)
     if filter_parts:
-        parts.append("WHERE")
-        parts.append(" AND ".join(filter_parts))
+        filters_text = " and ".join(filter_parts)
+        parts.append(f"For the {filters_text},")
     
-    # Add Group By clause
-    group_by_cols = [
-        col_key.split(".")[1]
-        for col_key, ops in st.session_state.column_operations.items()
-        if ops["results"] == "Group By"
-    ]
-    if group_by_cols:
-        parts.append("Group by")
-        parts.append(", ".join(group_by_cols))
+    # Add the main "Show me" part
+    parts.append("Show me")
+    
+    # Add result columns
+    if result_parts:
+        parts.append(" and ".join(result_parts))
+    
+    # Add Group By clause at the end
+    if group_by_parts:
+        parts.append("Grouped by")
+        parts.append(", ".join(group_by_parts))
     
     return " ".join(parts)
 

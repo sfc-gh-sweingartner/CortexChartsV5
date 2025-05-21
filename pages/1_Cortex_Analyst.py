@@ -140,10 +140,10 @@ def display_semantic_model_columns(model_path: str):
             # For development and testing - try to read directly from local file system
             with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
                 yaml_content = f.read()
-                st.sidebar.success(f"Read YAML file from local path: Dev/{file_path.split('/')[-1]}")
+                # Remove success message to reduce clutter
         except FileNotFoundError:
             # If local file not found, try using Snowpark to read from stage
-            st.sidebar.info(f"Attempting to read from Snowflake stage: {file_path}")
+            # Remove info message to reduce clutter
             
             # Handle different path formats more robustly
             parts = file_path.split('/')
@@ -169,7 +169,7 @@ def display_semantic_model_columns(model_path: str):
                     query = f"""
                     SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
                     """
-                    st.sidebar.info(f"Executing query: {query}")
+                    # Remove info message to reduce clutter
                     result = session.sql(query).collect()
                     if result and len(result) > 0:
                         yaml_content = result[0][0]
@@ -178,7 +178,7 @@ def display_semantic_model_columns(model_path: str):
                         alt_query = f"""
                         SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
                         """
-                        st.sidebar.info(f"Trying alternative query: {alt_query}")
+                        # Remove info message to reduce clutter
                         try:
                             result = session.sql(alt_query).collect()
                             if result and len(result) > 0:
@@ -192,14 +192,7 @@ def display_semantic_model_columns(model_path: str):
             else:
                 raise ValueError(f"Invalid stage path format: {file_path}")
         
-        # Debug the YAML content to see if it has a tables section
-        if yaml_content:
-            # Show the first 500 characters to verify content
-            st.sidebar.info(f"YAML content preview: {yaml_content[:500]}...")
-            
-            # Check for 'tables:' in the content
-            if 'tables:' not in yaml_content:
-                st.sidebar.warning("'tables:' section not found in YAML content")
+        # Remove debug check for 'tables:' section
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
@@ -330,10 +323,38 @@ def display_semantic_model_columns(model_path: str):
             # Add Generate Prompt button
             if st.button("Generate Prompt"):
                 prompt = generate_prompt_from_selections()
-                # Store the prompt in session state to display in the chat input
+                # Store the prompt in session state
                 st.session_state.generated_prompt = prompt
-                st.success(f"Prompt generated: {prompt}")
-                # Don't auto-run the prompt, just update the session state
+                
+                # Use a hidden container to store the prompt
+                st.session_state.prompt_text = prompt
+                
+                # Try to inject JavaScript to set the chat input field value
+                js_code = f"""
+                <script>
+                    // Wait for the page to finish loading
+                    window.addEventListener('load', function() {{
+                        // Give a short delay for elements to render
+                        setTimeout(function() {{
+                            // Try to find the chat input field
+                            const chatInputs = document.querySelectorAll('textarea');
+                            const chatInput = Array.from(chatInputs).find(el => 
+                                el.placeholder && el.placeholder.includes('question')
+                            );
+                            
+                            if (chatInput) {{
+                                // Set the value and trigger an input event
+                                chatInput.value = `{prompt}`;
+                                chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                chatInput.focus();
+                            }}
+                        }}, 500);
+                    }});
+                </script>
+                """
+                st.components.v1.html(js_code, height=0)
+                
+                # No success message to reduce clutter
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -394,22 +415,18 @@ def generate_prompt_from_selections() -> str:
 
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
-    # If we have a generated prompt, use it as the default
+    # Get the generated prompt if it exists
     default_input = st.session_state.get("generated_prompt", "")
     
-    # Handle chat input (without the value parameter)
+    # Handle chat input
     user_input = st.chat_input("What is your question?", key="chat_input")
-    
-    # If there's a generated prompt and the user hasn't typed anything, show it in the chat input
-    if default_input and not user_input:
-        # We can't directly set the value of chat_input, but we can show it to the user
-        st.info(f"Generated prompt is ready to use: **{default_input}**")
     
     # Process user input when provided
     if user_input:
         process_user_input(user_input)
         # Clear the generated prompt after it's been used
-        st.session_state.generated_prompt = None
+        if "generated_prompt" in st.session_state:
+            del st.session_state.generated_prompt
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:
         suggestion = st.session_state.active_suggestion

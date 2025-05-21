@@ -211,6 +211,39 @@ def display_semantic_model_columns(model_path: str):
         
         st.markdown("### Available Columns")
         
+        # Add custom CSS for tooltips
+        st.markdown("""
+        <style>
+        .column-tooltip {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .column-tooltip .tooltip-text {
+            visibility: hidden;
+            width: 250px;
+            background-color: #2c3e50;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            left: 100%;
+            top: 0;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.8rem;
+        }
+        
+        .column-tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Create an expander for each table
         for table in sorted(tables, key=lambda x: x.name):
             with st.expander(f"📊 {table.name}", expanded=False):
@@ -219,26 +252,37 @@ def display_semantic_model_columns(model_path: str):
                     col_key = f"{table.name}.{col.name}"
                     
                     # Create tooltip text
-                    tooltip = f"""
-                    **Column:** {col.name}
-                    **Type:** {col.column_type.value}
-                    **Data Type:** {col.data_type}
-                    **Description:** {col.description or 'No description available'}
+                    type_display = col.column_type.value.replace('_', ' ').title()
+                    description = col.description or "No description available"
+                    
+                    # Format the tooltip content in HTML
+                    tooltip_html = f"""
+                    <div class="column-tooltip">
+                        <input type="checkbox" id="col_{col_key}" 
+                            {'checked' if col_key in st.session_state.selected_columns else ''} 
+                            onchange="this.dispatchEvent(new Event('input'))">
+                        <label for="col_{col_key}">{col.name}</label>
+                        <div class="tooltip-text">
+                            <strong>Type:</strong> {type_display}<br>
+                            <strong>Data Type:</strong> {col.data_type}<br>
+                            <strong>Description:</strong> {description}
+                        </div>
+                    </div>
                     """
                     
-                    # Create a container for the checkbox and tooltip
-                    col1, col2 = st.columns([0.9, 0.1])
-                    with col1:
-                        if st.checkbox(
-                            col.name,
-                            key=f"col_{col_key}",
-                            value=col_key in st.session_state.selected_columns
-                        ):
-                            st.session_state.selected_columns.add(col_key)
-                        else:
-                            st.session_state.selected_columns.discard(col_key)
-                    with col2:
-                        st.markdown(f"<div title='{tooltip}'>ℹ️</div>", unsafe_allow_html=True)
+                    # Use a single column instead of split columns and handle the checkbox state
+                    checked = st.checkbox(
+                        col.name,
+                        key=f"col_{col_key}",
+                        value=col_key in st.session_state.selected_columns,
+                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}"
+                    )
+                    
+                    # Update the selection state
+                    if checked:
+                        st.session_state.selected_columns.add(col_key)
+                    else:
+                        st.session_state.selected_columns.discard(col_key)
         
         # If columns are selected, show the operation selection table
         if st.session_state.selected_columns:

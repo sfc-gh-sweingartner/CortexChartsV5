@@ -330,9 +330,10 @@ def display_semantic_model_columns(model_path: str):
             # Add Generate Prompt button
             if st.button("Generate Prompt"):
                 prompt = generate_prompt_from_selections()
-                # Update the chat input with the generated prompt
+                # Store the prompt in session state to display in the chat input
                 st.session_state.generated_prompt = prompt
-                st.experimental_rerun()
+                st.success(f"Prompt generated: {prompt}")
+                # Don't auto-run the prompt, just update the session state
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -395,19 +396,20 @@ def handle_user_inputs():
     """Handle user inputs from the chat interface."""
     # If we have a generated prompt, use it as the default
     default_input = st.session_state.get("generated_prompt", "")
-    if default_input:
-        # Set this in session state to be displayed on first render
-        st.session_state.generated_prompt = None  # Clear it after use
     
     # Handle chat input (without the value parameter)
-    user_input = st.chat_input("What is your question?")
+    user_input = st.chat_input("What is your question?", key="chat_input")
     
-    # If there's a generated prompt, process it
-    if not user_input and default_input:
-        process_user_input(default_input)
-    # Handle regular input
-    elif user_input:
+    # If there's a generated prompt and the user hasn't typed anything, show it in the chat input
+    if default_input and not user_input:
+        # We can't directly set the value of chat_input, but we can show it to the user
+        st.info(f"Generated prompt is ready to use: **{default_input}**")
+    
+    # Process user input when provided
+    if user_input:
         process_user_input(user_input)
+        # Clear the generated prompt after it's been used
+        st.session_state.generated_prompt = None
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:
         suggestion = st.session_state.active_suggestion

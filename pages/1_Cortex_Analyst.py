@@ -132,9 +132,27 @@ def display_semantic_model_columns(model_path: str):
         model_path: Path to the semantic model YAML file
     """
     try:
-        # Read the semantic model file
+        # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
-        yaml_content = session.sql(f"SELECT GET_STAGE_FILE_CONTENT('@{file_path}')").collect()[0][0]
+        
+        # Use Snowpark to read the file from the stage
+        stage_parts = file_path.split('/')
+        if len(stage_parts) >= 2:
+            database, schema = stage_parts[0].split('.')
+            stage_name = stage_parts[1]
+            file_name = '/'.join(stage_parts[2:])
+            
+            # Use Snowpark SQL to read the file content
+            query = f"""
+            SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
+            """
+            result = session.sql(query).collect()
+            if result and len(result) > 0:
+                yaml_content = result[0][0]
+            else:
+                raise ValueError(f"Could not read file from stage: {file_path}")
+        else:
+            raise ValueError(f"Invalid stage path format: {file_path}")
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
@@ -281,11 +299,17 @@ def handle_user_inputs():
     # If we have a generated prompt, use it as the default
     default_input = st.session_state.get("generated_prompt", "")
     if default_input:
+        # Set this in session state to be displayed on first render
         st.session_state.generated_prompt = None  # Clear it after use
     
-    # Handle chat input
-    user_input = st.chat_input("What is your question?", value=default_input)
-    if user_input:
+    # Handle chat input (without the value parameter)
+    user_input = st.chat_input("What is your question?")
+    
+    # If there's a generated prompt, process it
+    if not user_input and default_input:
+        process_user_input(default_input)
+    # Handle regular input
+    elif user_input:
         process_user_input(user_input)
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:

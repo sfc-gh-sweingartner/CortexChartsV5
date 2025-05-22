@@ -77,7 +77,6 @@ def reset_session_state():
     st.session_state.active_suggestion = None  # Currently selected suggestion
     st.session_state.warnings = []  # List to store warnings
     st.session_state.form_submitted = {}  # Dictionary to store feedback submission for each request
-    st.session_state.sql_execution_mode = "Run"  # Default SQL execution mode
     st.session_state.selected_columns = set()  # Selected columns from semantic model
     st.session_state.column_operations = {}  # Operations for selected columns
     st.session_state.generated_prompt = None  # Generated prompt from column selections

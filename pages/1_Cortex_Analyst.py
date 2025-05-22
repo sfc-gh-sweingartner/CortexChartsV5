@@ -264,23 +264,33 @@ def display_semantic_model_columns(model_path: str):
                     </div>
                     """
                     
+                    # Define a callback function for when the checkbox changes
+                    def on_checkbox_change(key):
+                        if st.session_state[f"col_{key}"]:
+                            st.session_state.selected_columns.add(key)
+                        else:
+                            st.session_state.selected_columns.discard(key)
+                            # Force a rerun to update the UI immediately
+                            st.rerun()
+                    
                     # Use a single column instead of split columns and handle the checkbox state
                     checked = st.checkbox(
                         col.name,
                         key=f"col_{col_key}",
                         value=col_key in st.session_state.selected_columns,
-                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}"
+                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}",
+                        on_change=on_checkbox_change,
+                        args=(col_key,)
                     )
                     
-                    # Update the selection state
-                    if checked:
-                        st.session_state.selected_columns.add(col_key)
-                    else:
-                        st.session_state.selected_columns.discard(col_key)
+                    # Update the selection state - REMOVED AS WE'RE USING CALLBACK
         
         # If columns are selected, show the operation selection table
         if st.session_state.selected_columns:
             st.markdown("### Selected Columns")
+            
+            # DEBUG: Print current selected columns
+            st.markdown(f"DEBUG: Currently selected columns: {sorted(list(st.session_state.selected_columns))}")
             
             # Initialize operation selections if not exists
             if "column_operations" not in st.session_state:

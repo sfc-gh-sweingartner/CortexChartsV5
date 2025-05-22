@@ -664,7 +664,20 @@ def display_sql_query(
                 elif df.empty:
                     st.write("Query returned no data")
                 else:
-                    st.dataframe(df, use_container_width=True)
+                    # Store the original row count
+                    total_rows = len(df)
+                    
+                    # Limit to 10,000 rows for display to avoid message size errors
+                    ROW_DISPLAY_LIMIT = 10000
+                    if total_rows > ROW_DISPLAY_LIMIT:
+                        display_df = df.head(ROW_DISPLAY_LIMIT)
+                        st.info(f"Showing first {ROW_DISPLAY_LIMIT:,} rows of {total_rows:,} total rows to avoid size limitations.")
+                    else:
+                        display_df = df
+                        
+                    st.dataframe(display_df, use_container_width=True)
+                    
+                    # Pass the full dataframe to chart display since we're already limiting in the chart functions
                     display_chart(df, message_index)
     else:
         # Display a message indicating SQL execution is disabled
@@ -692,8 +705,12 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             return
 
     # Limit to the top 5000 rows for visualization
-    df_display = df.head(5000)
-    
+    if len(df) > 5000:
+        st.info(f"Chart visualization is limited to the first 5,000 rows of {len(df):,} total rows.")
+        df_display = df.head(5000)
+    else:
+        df_display = df
+
     # Identify column types
     numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
     date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]

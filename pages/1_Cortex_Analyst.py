@@ -77,11 +77,9 @@ def reset_session_state():
     st.session_state.active_suggestion = None  # Currently selected suggestion
     st.session_state.warnings = []  # List to store warnings
     st.session_state.form_submitted = {}  # Dictionary to store feedback submission for each request
-    st.session_state.sql_execution_mode = "Run"  # Default SQL execution mode
     st.session_state.selected_columns = set()  # Selected columns from semantic model
     st.session_state.column_operations = {}  # Operations for selected columns
     st.session_state.generated_prompt = None  # Generated prompt from column selections
-    st.session_state.prompt_to_process = None  # Prompt to be processed from editable text area
 
 
 def show_header_and_sidebar():
@@ -122,7 +120,7 @@ def show_header_and_sidebar():
         
         # Center this button
         _, btn_container, _ = st.columns([2, 6, 2])
-        if btn_container.button("Clear Chat History", use_container_width=True, type="primary"):
+        if btn_container.button("Clear Chat History", use_container_width=True):
             reset_session_state()
 
 
@@ -143,7 +141,6 @@ def display_semantic_model_columns(model_path: str):
                 yaml_content = f.read()
         except FileNotFoundError:
             # If local file not found, try using Snowpark to read from stage
-            
             # Handle different path formats more robustly
             parts = file_path.split('/')
             if len(parts) >= 2:
@@ -189,12 +186,6 @@ def display_semantic_model_columns(model_path: str):
             else:
                 raise ValueError(f"Invalid stage path format: {file_path}")
         
-        # Debug the YAML content to see if it has a tables section
-        if yaml_content:
-            # Check for 'tables:' in the content
-            if 'tables:' not in yaml_content:
-                st.sidebar.warning("'tables:' section not found in YAML content")
-        
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
         tables = parser.parse()
@@ -203,7 +194,31 @@ def display_semantic_model_columns(model_path: str):
         if "selected_columns" not in st.session_state:
             st.session_state.selected_columns = set()
         
-        st.markdown("### Available Columns")
+        # Display model information if available
+        if tables:
+            st.markdown("### Semantic Model Columns")
+            st.write(f"**Tables:** {len(tables)}")
+            
+            # Create filter options for column types
+            col_type_filter = st.multiselect(
+                "Filter by column type:",
+                ["Dimensions", "Facts", "Time Dimensions"],
+                default=["Dimensions", "Facts", "Time Dimensions"],
+                key="column_type_filter"
+            )
+            
+            # Map the filter options to ColumnType enum values
+            type_map = {
+                "Dimensions": ColumnType.DIMENSION,
+                "Facts": ColumnType.FACT,
+                "Time Dimensions": ColumnType.TIME_DIMENSION
+            }
+            
+            # Filter columns by type
+            filtered_types = [type_map[t] for t in col_type_filter]
+            
+            # Optional search box for columns
+            search_term = st.text_input("Search columns:", key="column_search").lower()
         
         # Add custom CSS for tooltips
         st.markdown("""
@@ -240,8 +255,25 @@ def display_semantic_model_columns(model_path: str):
         
         # Create an expander for each table
         for table in sorted(tables, key=lambda x: x.name):
+            # Filter columns in this table based on selected types
+            table_columns = [col for col in table.columns if col.column_type in filtered_types]
+            
+            # Apply search filter if provided
+            if search_term:
+                table_columns = [col for col in table_columns if search_term in col.name.lower() or 
+                                (col.description and search_term in col.description.lower())]
+            
+            # Skip empty tables after filtering
+            if not table_columns:
+                continue
+                
             with st.expander(f"📊 {table.name}", expanded=False):
-                for col in table.columns:
+                # Show table description if available
+                if table.description:
+                    st.markdown(f"*{table.description}*")
+                
+                # Create a container for the columns
+                for col in table_columns:
                     # Create unique key for checkbox
                     col_key = f"{table.name}.{col.name}"
                     
@@ -249,41 +281,28 @@ def display_semantic_model_columns(model_path: str):
                     type_display = col.column_type.value.replace('_', ' ').title()
                     description = col.description or "No description available"
                     
-                    # Format the tooltip content in HTML
-                    tooltip_html = f"""
-                    <div class="column-tooltip">
-                        <input type="checkbox" id="col_{col_key}" 
-                            {'checked' if col_key in st.session_state.selected_columns else ''} 
-                            onchange="this.dispatchEvent(new Event('input'))">
-                        <label for="col_{col_key}">{col.name}</label>
-                        <div class="tooltip-text">
-                            <strong>Type:</strong> {type_display}<br>
-                            <strong>Data Type:</strong> {col.data_type}<br>
-                            <strong>Description:</strong> {description}
-                        </div>
-                    </div>
-                    """
+                    # Add icon based on column type
+                    icon = "🔢" if col.column_type == ColumnType.FACT else "📅" if col.column_type == ColumnType.TIME_DIMENSION else "📝"
                     
-                    # Define a callback function for when the checkbox changes
-                    def on_checkbox_change(key):
-                        if st.session_state[f"col_{key}"]:
-                            st.session_state.selected_columns.add(key)
-                        else:
-                            st.session_state.selected_columns.discard(key)
-                            # Force a rerun to update the UI immediately
-                            st.rerun()
+                    # Add sample values if available
+                    sample_text = ""
+                    if col.sample_values and len(col.sample_values) > 0:
+                        samples = ", ".join([str(v) for v in col.sample_values[:3]])
+                        sample_text = f"\n<strong>Examples:</strong> {samples}"
                     
                     # Use a single column instead of split columns and handle the checkbox state
                     checked = st.checkbox(
-                        col.name,
+                        f"{icon} {col.name}",
                         key=f"col_{col_key}",
                         value=col_key in st.session_state.selected_columns,
-                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}",
-                        on_change=on_checkbox_change,
-                        args=(col_key,)
+                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}{sample_text}"
                     )
                     
-                    # Update the selection state - REMOVED AS WE'RE USING CALLBACK
+                    # Update the selection state
+                    if checked:
+                        st.session_state.selected_columns.add(col_key)
+                    else:
+                        st.session_state.selected_columns.discard(col_key)
         
         # If columns are selected, show the operation selection table
         if st.session_state.selected_columns:
@@ -300,23 +319,55 @@ def display_semantic_model_columns(model_path: str):
                 
                 # Get or initialize operation settings
                 if col_key not in st.session_state.column_operations:
+                    # Default operation based on column type
+                    default_op = "Group By"
+                    for table in tables:
+                        if table.name == table_name:
+                            for col in table.columns:
+                                if col.name == col_name:
+                                    if col.column_type == ColumnType.FACT:
+                                        default_op = "Sum"
+                                    elif col.column_type == ColumnType.TIME_DIMENSION:
+                                        default_op = "Group By"
+                                    break
+                            break
+                            
                     st.session_state.column_operations[col_key] = {
-                        "results": "Group By",
+                        "results": default_op,
                         "filter": "Don't Filter"
                     }
                 
+                # Determine available operations based on column type
+                col_type = None
+                for table in tables:
+                    if table.name == table_name:
+                        for col in table.columns:
+                            if col.name == col_name:
+                                col_type = col.column_type
+                                break
+                        break
+                
+                # Different operation options based on column type
+                if col_type == ColumnType.FACT:
+                    operations = ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"]
+                elif col_type == ColumnType.TIME_DIMENSION:
+                    operations = ["Group By", "Count", "Don't Show"]
+                else:  # Dimension
+                    operations = ["Group By", "Count", "Don't Show"]
+                
                 operations_data.append({
-                    "Column": f"{table_name}.{col_name}",
+                    "Table": table_name,
+                    "Column": col_name,
                     "Results": st.selectbox(
-                        f"Results for {table_name} {col_name}",
-                        ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"],
+                        f"Results for {table_name}.{col_name}",
+                        operations,
                         key=f"results_{col_key}",
-                        index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"].index(
+                        index=operations.index(
                             st.session_state.column_operations[col_key]["results"]
-                        ) if st.session_state.column_operations[col_key]["results"] in ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"] else 0
+                        ) if st.session_state.column_operations[col_key]["results"] in operations else 0
                     ),
                     "Filter": st.text_input(
-                        f"Filter for {table_name} {col_name}",
+                        f"Filter for {table_name}.{col_name}",
                         value=st.session_state.column_operations[col_key]["filter"],
                         key=f"filter_{col_key}"
                     )
@@ -328,38 +379,39 @@ def display_semantic_model_columns(model_path: str):
                     "filter": operations_data[-1]["Filter"]
                 }
             
-            # Clean up operations for columns that are no longer selected
-            for col_key in list(st.session_state.column_operations.keys()):
-                if col_key not in st.session_state.selected_columns:
-                    del st.session_state.column_operations[col_key]
-            
-            # Add Generate Prompt button and editable prompt area
-            # Full width Generate Prompt button
-            if st.button("Generate Prompt", use_container_width=True, type="primary"):
+            # Add Generate Prompt button
+            if st.button("Generate Prompt"):
                 prompt = generate_prompt_from_selections()
-                # Store the prompt in session state to display in the editable area
+                # Store the prompt in session state
                 st.session_state.generated_prompt = prompt
-                st.rerun()  # Rerun to show the text area
-            
-            # If we have a generated prompt, show an editable text area
-            if st.session_state.get("generated_prompt"):
-                # Full width text area, 50% taller
-                edited_prompt = st.text_area(
-                    "Edit your prompt before sending:",
-                    value=st.session_state.generated_prompt,
-                    height=150,  # Increased height by 50%
-                    key="edited_prompt"
-                )
                 
-                # Full width Send button below the text area
-                if st.button("Send to Chat", use_container_width=True, type="primary"):
-                    # Get the edited text from the text area
-                    prompt_to_send = st.session_state.edited_prompt
-                    # Set a flag to process this prompt
-                    st.session_state.prompt_to_process = prompt_to_send
-                    # Clear the generated prompt to hide the editor
-                    st.session_state.generated_prompt = None
-                    st.rerun()  # Rerun to process the prompt
+                # Use a hidden container to store the prompt
+                st.session_state.prompt_text = prompt
+                
+                # Try to inject JavaScript to set the chat input field value
+                js_code = f"""
+                <script>
+                    // Wait for the page to finish loading
+                    window.addEventListener('load', function() {{
+                        // Give a short delay for elements to render
+                        setTimeout(function() {{
+                            // Try to find the chat input field
+                            const chatInputs = document.querySelectorAll('textarea');
+                            const chatInput = Array.from(chatInputs).find(el => 
+                                el.placeholder && el.placeholder.includes('question')
+                            );
+                            
+                            if (chatInput) {{
+                                // Set the value and trigger an input event
+                                chatInput.value = `{prompt}`;
+                                chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                chatInput.focus();
+                            }}
+                        }}, 500);
+                    }});
+                </script>
+                """
+                st.components.v1.html(js_code, height=0)
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -380,12 +432,7 @@ def generate_prompt_from_selections() -> str:
     filter_parts = []
     group_by_parts = []
     
-    # Only consider operations for currently selected columns
     for col_key, ops in st.session_state.column_operations.items():
-        # Skip columns that are no longer selected
-        if col_key not in st.session_state.selected_columns:
-            continue
-            
         table_name, col_name = col_key.split(".")
         
         # Format with table name included
@@ -400,12 +447,6 @@ def generate_prompt_from_selections() -> str:
             if ops["results"] == "Group By":
                 result_parts.append(qualified_col_name)
                 group_by_parts.append(qualified_col_name)
-            elif ops["results"] == "Truncate to Day":
-                result_parts.append(f"truncate {qualified_col_name} to day")
-                group_by_parts.append(f"truncate {qualified_col_name} to day")
-            elif ops["results"] == "Truncate to Month":
-                result_parts.append(f"truncate {qualified_col_name} to month")
-                group_by_parts.append(f"truncate {qualified_col_name} to month")
             else:
                 result_parts.append(f"{ops['results']} of {qualified_col_name}")
     
@@ -431,24 +472,18 @@ def generate_prompt_from_selections() -> str:
 
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
-    # Check if we have a prompt to process from the editable text area
-    if st.session_state.get("prompt_to_process"):
-        prompt_to_process = st.session_state.prompt_to_process
-        # Clear the flag
-        del st.session_state.prompt_to_process
-        # Process the prompt
-        process_user_input(prompt_to_process)
-        return
+    # Get the generated prompt if it exists
+    default_input = st.session_state.get("generated_prompt", "")
     
-    # Handle regular chat input
+    # Handle chat input
     user_input = st.chat_input("What is your question?", key="chat_input")
     
     # Process user input when provided
     if user_input:
         process_user_input(user_input)
-        # Clear the generated prompt if it exists
+        # Clear the generated prompt after it's been used
         if "generated_prompt" in st.session_state:
-            st.session_state.generated_prompt = None
+            del st.session_state.generated_prompt
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:
         suggestion = st.session_state.active_suggestion
@@ -687,55 +722,8 @@ def display_sql_query(
                 elif df.empty:
                     st.write("Query returned no data")
                 else:
-                    # Calculate approximate memory usage
-                    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
-
-                    # More aggressive row limit for large datasets
-                    if df_size_mb > 20:  # If estimated size is over 20MB, use stricter limit
-                        # Calculate a reasonable row limit based on size
-                        # If 5,000 rows is 0.75 MB (from testing), we can estimate how many rows would reach ~10 MB
-                        estimated_row_size_kb = (df_size_mb * 1024) / len(df)  # KB per row
-                        safe_row_limit = int(10 * 1024 / estimated_row_size_kb)  # Rows for ~10 MB
-                        
-                        # Cap between 5,000 and 20,000
-                        ROW_DISPLAY_LIMIT = max(5000, min(safe_row_limit, 20000))
-                    else:
-                        ROW_DISPLAY_LIMIT = 10000
-                    
-                    # Apply row limit for display
-                    if len(df) > ROW_DISPLAY_LIMIT:
-                        display_df = df.head(ROW_DISPLAY_LIMIT)
-                        st.info(f"Showing first {ROW_DISPLAY_LIMIT:,} rows of {len(df):,} total rows to avoid size limitations.")
-                    else:
-                        display_df = df
-                    
-                    try:
-                        st.dataframe(display_df, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Error displaying dataframe: {str(e)}")
-                        # If display fails, try with even fewer rows
-                        st.write("Attempting to display with fewer rows...")
-                        try:
-                            st.dataframe(display_df.head(1000), use_container_width=True)
-                        except Exception as e2:
-                            st.error(f"Still failed with reduced rows: {str(e2)}")
-                    
-                    # Pass a potentially reduced dataframe to chart display
-                    # Calculate a reasonable row limit for chart visualization based on the display dataframe size
-                    display_df_size_mb = display_df.memory_usage(deep=True).sum() / (1024 * 1024)
-
-                    if display_df_size_mb > 0:
-                        # Estimate how many rows would reach ~8 MB (safe for chart visualization)
-                        estimated_row_size_kb = (display_df_size_mb * 1024) / len(display_df)  # KB per row
-                        chart_safe_limit = int(8 * 1024 / estimated_row_size_kb)  # Rows for ~8 MB
-                        
-                        # Cap between 3,000 and 20,000 rows
-                        CHART_ROW_LIMIT = max(3000, min(chart_safe_limit, 20000))
-                    else:
-                        CHART_ROW_LIMIT = 3000
-
-                    chart_df = df.head(CHART_ROW_LIMIT) if len(df) > CHART_ROW_LIMIT else df
-                    display_chart(chart_df, message_index)
+                    st.dataframe(df, use_container_width=True)
+                    display_chart(df, message_index)
     else:
         # Display a message indicating SQL execution is disabled
         with st.expander("Results", expanded=True):
@@ -761,51 +749,15 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             st.error("Could not process data into proper format for visualization")
             return
 
-    # Calculate dataframe size but don't display debug info
-    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+    # Limit to the top 5000 rows for visualization
+    df_display = df.head(5000)
     
-    # Calculate a reasonable row limit for visualization based on size
-    if df_size_mb > 0:
-        # Estimate how many rows would reach ~8 MB (safe for visualization)
-        estimated_row_size_kb = (df_size_mb * 1024) / len(df)  # KB per row
-        safe_row_limit = int(8 * 1024 / estimated_row_size_kb)  # Rows for ~8 MB
-        
-        # Cap between 3,000 and 20,000 rows
-        MAX_CHART_ROWS = max(3000, min(safe_row_limit, 20000))
-    else:
-        MAX_CHART_ROWS = 3000
-
-    # Apply the dynamic row limit
-    if len(df) > MAX_CHART_ROWS:
-        st.info(f"Chart visualization is limited to the first {MAX_CHART_ROWS:,} rows of {len(df):,} total rows.")
-        df_display = df.head(MAX_CHART_ROWS)
-    else:
-        df_display = df
+    # Identify column types
+    numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
+    date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
+    text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
     
-    # Further optimize the dataframe if it's still large
-    display_size_mb = df_display.memory_usage(deep=True).sum() / (1024 * 1024)
-    if display_size_mb > 10:  # If still over 10MB
-        # Convert float64 to float32 and int64 to int32 to reduce memory
-        for col in df_display.select_dtypes(include=['float64']).columns:
-            df_display[col] = df_display[col].astype('float32')
-        
-        for col in df_display.select_dtypes(include=['int64']).columns:
-            df_display[col] = df_display[col].astype('int32')
-        
-        # For string columns, limit the length if any are excessively long
-        for col in df_display.select_dtypes(include=['object']).columns:
-            # Check if we have any long string values
-            max_len = df_display[col].astype(str).map(len).max()
-            if max_len > 100:  # If strings longer than 100 chars
-                df_display[col] = df_display[col].astype(str).str.slice(0, 100)
-        
-    # Now continue with the regular chart creation logic
     try:
-        # Identify column types
-        numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
-        date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
-        text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
-        
         # Check for KPI tiles first (single row with numeric columns)
         if len(df_display) == 1 and len(numeric_cols) >= 1:
             chart_metadata = {
@@ -818,7 +770,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if kpi_result:
                 # KPI tiles were already rendered by create_chart10
                 # Just show the "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     
@@ -917,6 +869,20 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
+            # Chart Type 4: Date column, multiple categorical columns, and numeric column - Stacked Bar with Selector
+            if not chart_created and len(date_cols) >= 1 and len(text_cols) >= 2 and len(numeric_cols) >= 1:
+                chart_metadata = {
+                    'chart4_columns': {
+                        'date_col': date_cols[0],
+                        'text_cols': text_cols,
+                        'numeric_col': numeric_cols[0]
+                    }
+                }
+                df_display.attrs['chart_metadata'] = chart_metadata
+                alt_chart = create_chart4(df_display, chart_metadata['chart4_columns'])
+                if alt_chart:
+                    chart_created = True
+            
             # Chart Type 6: Two text columns, two numeric columns - Multi-Dimension Scatter
             if not chart_created and len(text_cols) >= 2 and len(numeric_cols) >= 2:
                 chart_metadata = {
@@ -929,20 +895,6 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
                 alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
-                if alt_chart:
-                    chart_created = True
-            
-            # Chart Type 4: Date column, multiple categorical columns, and numeric column - Stacked Bar with Selector
-            if not chart_created and len(date_cols) >= 1 and len(text_cols) >= 2 and len(numeric_cols) >= 1:
-                chart_metadata = {
-                    'chart4_columns': {
-                        'date_col': date_cols[0],
-                        'text_cols': text_cols,
-                        'numeric_col': numeric_cols[0]
-                    }
-                }
-                df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart4(df_display, chart_metadata['chart4_columns'])
                 if alt_chart:
                     chart_created = True
             
@@ -1001,8 +953,8 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 9: Text columns and numeric columns - Bar Chart with Selectors
-            if not chart_created and len(text_cols) >= 1 and len(numeric_cols) >= 1:
+            # Chart Type 9: Text columns and numeric columns - Bar Chart with Selectors (only when no date columns)
+            if not chart_created and len(date_cols) == 0 and len(text_cols) >= 1 and len(numeric_cols) >= 1:
                 chart_metadata = {
                     'chart9_columns': {
                         'text_cols': text_cols,
@@ -1019,7 +971,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if isinstance(alt_chart, pdk.Deck):
                 st.pydeck_chart(alt_chart)
                 # For maps (Chart 11), show "Open in Map Designer" button
-                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}", type="primary"):
+                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}"):
                     if "map_transfer" not in st.session_state:
                         st.session_state.map_transfer = {}
                     
@@ -1052,13 +1004,11 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     }
                     
                     # Navigate to Map Designer
-                    st.switch_page("pages/4_Map_Designer.py")
+                    st.switch_page("pages/3_Map_Designer.py")
             else:
-                # Display chart directly without fallbacks
                 st.altair_chart(alt_chart, use_container_width=True)
-                
                 # For non-map charts (Chart 1-10), show "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     
@@ -1097,8 +1047,6 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             
     except Exception as e:
         st.error(f"Error creating visualization: {str(e)}")
-        # Simpler error message without fallback visualization attempts
-        st.write("Please try a query that returns less data or fewer columns.")
 
 
 def display_feedback_section(request_id: str):

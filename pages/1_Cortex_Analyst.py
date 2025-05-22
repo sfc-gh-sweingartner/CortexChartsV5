@@ -708,7 +708,19 @@ def display_sql_query(
                     
                     # Pass a potentially reduced dataframe to chart display
                     # Limit chart data more aggressively to prevent errors
-                    CHART_ROW_LIMIT = 3000  # More conservative limit for charts
+                    # Calculate a reasonable row limit for chart visualization based on the display dataframe size
+                    display_df_size_mb = display_df.memory_usage(deep=True).sum() / (1024 * 1024)
+
+                    if display_df_size_mb > 0:
+                        # Estimate how many rows would reach ~8 MB (safe for chart visualization)
+                        estimated_row_size_kb = (display_df_size_mb * 1024) / len(display_df)  # KB per row
+                        chart_safe_limit = int(8 * 1024 / estimated_row_size_kb)  # Rows for ~8 MB
+                        
+                        # Cap between 3,000 and 20,000 rows
+                        CHART_ROW_LIMIT = max(3000, min(chart_safe_limit, 20000))
+                    else:
+                        CHART_ROW_LIMIT = 3000
+
                     chart_df = df.head(CHART_ROW_LIMIT) if len(df) > CHART_ROW_LIMIT else df
                     st.write(f"Debug: Chart dataframe has {len(chart_df):,} rows")
                     display_chart(chart_df, message_index)
@@ -740,15 +752,25 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
     # Start with debugging the incoming dataframe
     df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
     st.write(f"Debug: Chart function received dataframe with {len(df):,} rows, {len(df.columns)} columns, size: {df_size_mb:.2f} MB")
-    
-    # Even more aggressive row limit for very large datasets
-    MAX_CHART_ROWS = 3000
+
+    # Calculate a reasonable row limit for visualization based on size
+    if df_size_mb > 0:
+        # Estimate how many rows would reach ~8 MB (safe for visualization)
+        estimated_row_size_kb = (df_size_mb * 1024) / len(df)  # KB per row
+        safe_row_limit = int(8 * 1024 / estimated_row_size_kb)  # Rows for ~8 MB
+        
+        # Cap between 3,000 and 20,000 rows
+        MAX_CHART_ROWS = max(3000, min(safe_row_limit, 20000))
+    else:
+        MAX_CHART_ROWS = 3000
+
+    # Apply the dynamic row limit
     if len(df) > MAX_CHART_ROWS:
         st.info(f"Chart visualization is limited to the first {MAX_CHART_ROWS:,} rows of {len(df):,} total rows to prevent memory issues.")
         df_display = df.head(MAX_CHART_ROWS)
     else:
         df_display = df
-    
+
     # Further optimize the dataframe if it's still large
     display_size_mb = df_display.memory_usage(deep=True).sum() / (1024 * 1024)
     if display_size_mb > 10:  # If still over 10MB

@@ -289,9 +289,6 @@ def display_semantic_model_columns(model_path: str):
         if st.session_state.selected_columns:
             st.markdown("### Selected Columns")
             
-            # DEBUG: Print current selected columns
-            st.markdown(f"DEBUG: Currently selected columns: {sorted(list(st.session_state.selected_columns))}")
-            
             # Initialize operation selections if not exists
             if "column_operations" not in st.session_state:
                 st.session_state.column_operations = {}

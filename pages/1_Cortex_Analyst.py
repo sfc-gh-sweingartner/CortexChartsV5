@@ -302,11 +302,11 @@ def display_semantic_model_columns(model_path: str):
                     "Column": f"{table_name}.{col_name}",
                     "Results": st.selectbox(
                         f"Results for {table_name} {col_name}",
-                        ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"],
+                        ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"],
                         key=f"results_{col_key}",
-                        index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"].index(
+                        index=["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"].index(
                             st.session_state.column_operations[col_key]["results"]
-                        )
+                        ) if st.session_state.column_operations[col_key]["results"] in ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Truncate to Day", "Truncate to Month", "Don't Show"] else 0
                     ),
                     "Filter": st.text_input(
                         f"Filter for {table_name} {col_name}",
@@ -383,6 +383,12 @@ def generate_prompt_from_selections() -> str:
             if ops["results"] == "Group By":
                 result_parts.append(qualified_col_name)
                 group_by_parts.append(qualified_col_name)
+            elif ops["results"] == "Truncate to Day":
+                result_parts.append(f"truncate {qualified_col_name} to day")
+                group_by_parts.append(f"truncate {qualified_col_name} to day")
+            elif ops["results"] == "Truncate to Month":
+                result_parts.append(f"truncate {qualified_col_name} to month")
+                group_by_parts.append(f"truncate {qualified_col_name} to month")
             else:
                 result_parts.append(f"{ops['results']} of {qualified_col_name}")
     

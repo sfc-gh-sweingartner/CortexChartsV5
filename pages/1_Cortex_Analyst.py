@@ -674,7 +674,13 @@ def display_sql_query(
                     
                     # More aggressive row limit for large datasets
                     if df_size_mb > 20:  # If estimated size is over 20MB, use stricter limit
-                        ROW_DISPLAY_LIMIT = 5000
+                        # Calculate a reasonable row limit based on size
+                        # If 5,000 rows is 0.75 MB (from testing), we can estimate how many rows would reach ~10 MB
+                        estimated_row_size_kb = (df_size_mb * 1024) / total_rows  # KB per row
+                        safe_row_limit = int(10 * 1024 / estimated_row_size_kb)  # Rows for ~10 MB
+                        
+                        # Cap between 5,000 and 20,000
+                        ROW_DISPLAY_LIMIT = max(5000, min(safe_row_limit, 20000))
                     else:
                         ROW_DISPLAY_LIMIT = 10000
                     

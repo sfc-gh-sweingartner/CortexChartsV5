@@ -321,6 +321,11 @@ def display_semantic_model_columns(model_path: str):
                     "filter": operations_data[-1]["Filter"]
                 }
             
+            # Clean up operations for columns that are no longer selected
+            for col_key in list(st.session_state.column_operations.keys()):
+                if col_key not in st.session_state.selected_columns:
+                    del st.session_state.column_operations[col_key]
+            
             # Add Generate Prompt button and editable prompt area
             # Full width Generate Prompt button
             if st.button("Generate Prompt", use_container_width=True, type="primary"):

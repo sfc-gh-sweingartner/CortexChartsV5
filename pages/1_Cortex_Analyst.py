@@ -664,21 +664,48 @@ def display_sql_query(
                 elif df.empty:
                     st.write("Query returned no data")
                 else:
-                    # Store the original row count
+                    # Debug information about the original dataframe
                     total_rows = len(df)
+                    total_cols = len(df.columns)
                     
-                    # Limit to 10,000 rows for display to avoid message size errors
-                    ROW_DISPLAY_LIMIT = 10000
+                    # Calculate approximate memory usage
+                    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+                    st.write(f"Debug: Original dataframe has {total_rows:,} rows, {total_cols} columns, approximate size: {df_size_mb:.2f} MB")
+                    
+                    # More aggressive row limit for large datasets
+                    if df_size_mb > 20:  # If estimated size is over 20MB, use stricter limit
+                        ROW_DISPLAY_LIMIT = 5000
+                    else:
+                        ROW_DISPLAY_LIMIT = 10000
+                    
+                    # Apply row limit for display
                     if total_rows > ROW_DISPLAY_LIMIT:
                         display_df = df.head(ROW_DISPLAY_LIMIT)
                         st.info(f"Showing first {ROW_DISPLAY_LIMIT:,} rows of {total_rows:,} total rows to avoid size limitations.")
                     else:
                         display_df = df
-                        
-                    st.dataframe(display_df, use_container_width=True)
                     
-                    # Pass the full dataframe to chart display since we're already limiting in the chart functions
-                    display_chart(df, message_index)
+                    # Debug reduced dataframe size
+                    display_df_size_mb = display_df.memory_usage(deep=True).sum() / (1024 * 1024)
+                    st.write(f"Debug: Display dataframe has {len(display_df):,} rows, {total_cols} columns, approximate size: {display_df_size_mb:.2f} MB")
+                    
+                    try:
+                        st.dataframe(display_df, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error displaying dataframe: {str(e)}")
+                        # If display fails, try with even fewer rows
+                        st.write("Attempting to display with fewer rows...")
+                        try:
+                            st.dataframe(display_df.head(1000), use_container_width=True)
+                        except Exception as e2:
+                            st.error(f"Still failed with reduced rows: {str(e2)}")
+                    
+                    # Pass a potentially reduced dataframe to chart display
+                    # Limit chart data more aggressively to prevent errors
+                    CHART_ROW_LIMIT = 3000  # More conservative limit for charts
+                    chart_df = df.head(CHART_ROW_LIMIT) if len(df) > CHART_ROW_LIMIT else df
+                    st.write(f"Debug: Chart dataframe has {len(chart_df):,} rows")
+                    display_chart(chart_df, message_index)
     else:
         # Display a message indicating SQL execution is disabled
         with st.expander("Results", expanded=True):
@@ -704,19 +731,50 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             st.error("Could not process data into proper format for visualization")
             return
 
-    # Limit to the top 5000 rows for visualization
-    if len(df) > 5000:
-        st.info(f"Chart visualization is limited to the first 5,000 rows of {len(df):,} total rows.")
-        df_display = df.head(5000)
+    # Start with debugging the incoming dataframe
+    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+    st.write(f"Debug: Chart function received dataframe with {len(df):,} rows, {len(df.columns)} columns, size: {df_size_mb:.2f} MB")
+    
+    # Even more aggressive row limit for very large datasets
+    MAX_CHART_ROWS = 3000
+    if len(df) > MAX_CHART_ROWS:
+        st.info(f"Chart visualization is limited to the first {MAX_CHART_ROWS:,} rows of {len(df):,} total rows to prevent memory issues.")
+        df_display = df.head(MAX_CHART_ROWS)
     else:
         df_display = df
-
-    # Identify column types
-    numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
-    date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
-    text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
     
+    # Further optimize the dataframe if it's still large
+    display_size_mb = df_display.memory_usage(deep=True).sum() / (1024 * 1024)
+    if display_size_mb > 10:  # If still over 10MB
+        st.warning("Large dataset detected. Attempting to optimize for visualization...")
+        
+        # Convert float64 to float32 and int64 to int32 to reduce memory
+        for col in df_display.select_dtypes(include=['float64']).columns:
+            df_display[col] = df_display[col].astype('float32')
+        
+        for col in df_display.select_dtypes(include=['int64']).columns:
+            df_display[col] = df_display[col].astype('int32')
+        
+        # For string columns, limit the length if any are excessively long
+        for col in df_display.select_dtypes(include=['object']).columns:
+            # Check if we have any long string values
+            max_len = df_display[col].astype(str).map(len).max()
+            if max_len > 100:  # If strings longer than 100 chars
+                st.write(f"Debug: Truncating long text in column '{col}' (max length: {max_len})")
+                df_display[col] = df_display[col].astype(str).str.slice(0, 100)
+        
+        optimized_size_mb = df_display.memory_usage(deep=True).sum() / (1024 * 1024)
+        st.write(f"Debug: Optimized chart dataframe size: {optimized_size_mb:.2f} MB (reduced from {display_size_mb:.2f} MB)")
+
+    # Now continue with the regular chart creation logic
     try:
+        # Identify column types
+        numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
+        date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
+        text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
+        
+        st.write(f"Debug: Column types - Numeric: {len(numeric_cols)}, Date: {len(date_cols)}, Text: {len(text_cols)}")
+        
         # Check for KPI tiles first (single row with numeric columns)
         if len(df_display) == 1 and len(numeric_cols) >= 1:
             chart_metadata = {
@@ -963,9 +1021,11 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     }
                     
                     # Navigate to Map Designer
-                    st.switch_page("pages/3_Map_Designer.py")
+                    st.switch_page("pages/4_Map_Designer.py")
             else:
+                # Display chart directly without fallbacks
                 st.altair_chart(alt_chart, use_container_width=True)
+                
                 # For non-map charts (Chart 1-10), show "Open in Designer" button
                 if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
                     if "report_transfer" not in st.session_state:
@@ -1006,6 +1066,8 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             
     except Exception as e:
         st.error(f"Error creating visualization: {str(e)}")
+        # Simpler error message without fallback visualization attempts
+        st.write("Please try a query that returns less data or fewer columns.")
 
 
 def display_feedback_section(request_id: str):

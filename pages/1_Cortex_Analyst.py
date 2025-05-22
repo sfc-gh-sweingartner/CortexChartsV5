@@ -368,7 +368,12 @@ def generate_prompt_from_selections() -> str:
     filter_parts = []
     group_by_parts = []
     
+    # Only consider operations for currently selected columns
     for col_key, ops in st.session_state.column_operations.items():
+        # Skip columns that are no longer selected
+        if col_key not in st.session_state.selected_columns:
+            continue
+            
         table_name, col_name = col_key.split(".")
         
         # Format with table name included

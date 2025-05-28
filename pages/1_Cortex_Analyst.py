@@ -64,6 +64,9 @@ def main():
     # Initialize session state
     if "messages" not in st.session_state:
         reset_session_state()
+    # Make sure the reset flag is initialized
+    if "reset_requested" not in st.session_state:
+        st.session_state.reset_requested = False
     show_header_and_sidebar()
     display_conversation()
     handle_user_inputs()
@@ -87,17 +90,11 @@ def reset_session_state():
     st.session_state.show_prompt_preview = False  # Flag to control prompt preview visibility
     st.session_state.pending_prompt = None  # Prompt waiting to be sent to chat
     
-    # Clear column checkbox states
-    # Find and clear all column selection checkboxes by looking for keys with 'col_' prefix
-    keys_to_clear = [key for key in st.session_state.keys() if key.startswith('col_')]
-    for key in keys_to_clear:
-        st.session_state[key] = False
+    # Set a flag to indicate a reset was requested rather than trying to modify widget values directly
+    st.session_state.reset_requested = True
     
-    # Clear other UI state related to column operations
-    operation_keys = [key for key in st.session_state.keys() 
-                     if key.startswith('results_') or key.startswith('filter_')]
-    for key in operation_keys:
-        st.session_state.pop(key, None)  # Remove the key if it exists
+    # Instead of trying to modify checkbox values directly (which causes errors),
+    # we'll use the reset_requested flag when initializing the checkboxes
 
 
 def show_header_and_sidebar():
@@ -140,6 +137,8 @@ def show_header_and_sidebar():
         _, btn_container, _ = st.columns([2, 6, 2])
         if btn_container.button("Clear Chat History", type="primary", use_container_width=True):
             reset_session_state()
+            # Trigger a rerun to ensure the UI refreshes completely
+            st.rerun()
 
 
 def display_semantic_model_columns(model_path: str):
@@ -148,6 +147,17 @@ def display_semantic_model_columns(model_path: str):
     Args:
         model_path: Path to the semantic model YAML file
     """
+    # Check if a reset was requested and clear selections if needed
+    reset_requested = st.session_state.get("reset_requested", False)
+    if reset_requested:
+        # Clear the reset flag so it doesn't persist
+        st.session_state.reset_requested = False
+        
+        # We only need to clear the selected_columns set, as the checkboxes
+        # will be initialized based on this value
+        st.session_state.selected_columns = set()
+        st.session_state.column_operations = {}
+    
     try:
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
@@ -310,6 +320,8 @@ def display_semantic_model_columns(model_path: str):
                         sample_text = f"\n<strong>Examples:</strong> {samples}"
                     
                     # Use a single column instead of split columns and handle the checkbox state
+                    # The value is determined solely by whether the column key is in selected_columns
+                    # This avoids trying to directly modify widget values which causes errors
                     checked = st.checkbox(
                         f"{icon} {col.name}",
                         key=f"col_{col_key}",

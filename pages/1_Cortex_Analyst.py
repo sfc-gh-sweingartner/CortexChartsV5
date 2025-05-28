@@ -385,48 +385,14 @@ def display_semantic_model_columns(model_path: str):
                 # Store the prompt in session state
                 st.session_state.generated_prompt = prompt
                 
-                # Use a hidden container to store the prompt
-                st.session_state.prompt_text = prompt
+                # Display the generated prompt for verification
+                st.info(f"Generated prompt: **{prompt}**. Click anywhere in the chat input box below and press Ctrl+V (or Cmd+V on Mac) to paste it.")
                 
-                # Try to inject JavaScript to set the chat input field value
-                js_code = f"""
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {{
-                        // Function to find and set chat input value
-                        function setChatInputValue() {{
-                            // Look for all textareas in the document
-                            const textareas = document.querySelectorAll('textarea');
-                            
-                            // Find the chat input by checking placeholders or aria-labels
-                            let chatInput = null;
-                            textareas.forEach(input => {{
-                                if (input.placeholder && input.placeholder.includes('question') || 
-                                    input.getAttribute('aria-label') && input.getAttribute('aria-label').includes('chat')) {{
-                                    chatInput = input;
-                                }}
-                            }});
-                            
-                            if (chatInput) {{
-                                // Set the value and trigger an input event
-                                chatInput.value = `{prompt}`;
-                                chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                                chatInput.focus();
-                                return true;
-                            }}
-                            return false;
-                        }}
-                        
-                        // Try immediately
-                        if (!setChatInputValue()) {{
-                            // If not successful, retry with increasing delays
-                            setTimeout(setChatInputValue, 300);
-                            setTimeout(setChatInputValue, 600);
-                            setTimeout(setChatInputValue, 1000);
-                        }}
-                    }});
-                </script>
-                """
-                st.components.v1.html(js_code, height=0)
+                # Use Streamlit's clipboard functionality to make it easy to copy
+                st.code(prompt, language=None)
+                
+                # Rerun to ensure the prompt is available for the chat input
+                st.rerun()
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -490,8 +456,11 @@ def handle_user_inputs():
     # Get the generated prompt if it exists
     default_input = st.session_state.get("generated_prompt", "")
     
-    # Handle chat input
-    user_input = st.chat_input("What is your question?", key="chat_input")
+    # Handle chat input - pass the default value from session state
+    user_input = st.chat_input(
+        "What is your question?", 
+        key="chat_input"
+    )
     
     # Process user input when provided
     if user_input:

@@ -120,7 +120,7 @@ def show_header_and_sidebar():
         
         # Center this button
         _, btn_container, _ = st.columns([2, 6, 2])
-        if btn_container.button("Clear Chat History", use_container_width=True):
+        if btn_container.button("Clear Chat History", type="primary", use_container_width=True):
             reset_session_state()
 
 
@@ -286,7 +286,7 @@ def display_semantic_model_columns(model_path: str):
                     
                     # Add sample values if available
                     sample_text = ""
-                    if col.sample_values and len(col.sample_values) > 0:
+                    if hasattr(col, 'sample_values') and col.sample_values and len(col.sample_values) > 0:
                         samples = ", ".join([str(v) for v in col.sample_values[:3]])
                         sample_text = f"\n<strong>Examples:</strong> {samples}"
                     
@@ -380,7 +380,7 @@ def display_semantic_model_columns(model_path: str):
                 }
             
             # Add Generate Prompt button
-            if st.button("Generate Prompt"):
+            if st.button("Generate Prompt", type="primary"):
                 prompt = generate_prompt_from_selections()
                 # Store the prompt in session state
                 st.session_state.generated_prompt = prompt
@@ -391,23 +391,38 @@ def display_semantic_model_columns(model_path: str):
                 # Try to inject JavaScript to set the chat input field value
                 js_code = f"""
                 <script>
-                    // Wait for the page to finish loading
-                    window.addEventListener('load', function() {{
-                        // Give a short delay for elements to render
-                        setTimeout(function() {{
-                            // Try to find the chat input field
-                            const chatInputs = document.querySelectorAll('textarea');
-                            const chatInput = Array.from(chatInputs).find(el => 
-                                el.placeholder && el.placeholder.includes('question')
-                            );
+                    document.addEventListener('DOMContentLoaded', function() {{
+                        // Function to find and set chat input value
+                        function setChatInputValue() {{
+                            // Look for all textareas in the document
+                            const textareas = document.querySelectorAll('textarea');
+                            
+                            // Find the chat input by checking placeholders or aria-labels
+                            let chatInput = null;
+                            textareas.forEach(input => {{
+                                if (input.placeholder && input.placeholder.includes('question') || 
+                                    input.getAttribute('aria-label') && input.getAttribute('aria-label').includes('chat')) {{
+                                    chatInput = input;
+                                }}
+                            }});
                             
                             if (chatInput) {{
                                 // Set the value and trigger an input event
                                 chatInput.value = `{prompt}`;
                                 chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
                                 chatInput.focus();
+                                return true;
                             }}
-                        }}, 500);
+                            return false;
+                        }}
+                        
+                        // Try immediately
+                        if (!setChatInputValue()) {{
+                            // If not successful, retry with increasing delays
+                            setTimeout(setChatInputValue, 300);
+                            setTimeout(setChatInputValue, 600);
+                            setTimeout(setChatInputValue, 1000);
+                        }}
                     }});
                 </script>
                 """

@@ -228,29 +228,30 @@ def display_semantic_model_columns(model_path: str):
         .column-tooltip {
             position: relative;
             display: inline-block;
-            width: 100%;
         }
         
         .column-tooltip .tooltip-text {
             visibility: hidden;
             width: 250px;
-            background-color: #2c3e50;
+            background-color: #333;
             color: #fff;
             text-align: left;
             border-radius: 6px;
-            padding: 8px;
+            padding: 5px;
             position: absolute;
             z-index: 1;
-            left: 100%;
-            top: 0;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px;
             opacity: 0;
             transition: opacity 0.3s;
-            font-size: 0.8rem;
+            font-size: 0.8em;
+            line-height: 1.2;
         }
         
         .column-tooltip:hover .tooltip-text {
             visibility: visible;
-            opacity: 1;
+            opacity: 0.9;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -279,7 +280,7 @@ def display_semantic_model_columns(model_path: str):
                     # Create unique key for checkbox
                     col_key = f"{table.name}.{col.name}"
                     
-                    # Create tooltip text
+                    # Extract column info
                     type_display = col.column_type.value.replace('_', ' ').title()
                     description = col.description or "No description available"
                     
@@ -310,12 +311,10 @@ def display_semantic_model_columns(model_path: str):
         if st.session_state.selected_columns:
             st.markdown("### Selected Columns")
             
-            # Initialize operation selections if not exists
-            if "column_operations" not in st.session_state:
-                st.session_state.column_operations = {}
-            
-            # Create a DataFrame for the operations table
+            # Prepare data for the operations table
             operations_data = []
+            
+            # Process each selected column
             for col_key in sorted(st.session_state.selected_columns):
                 table_name, col_name = col_key.split(".")
                 
@@ -353,7 +352,7 @@ def display_semantic_model_columns(model_path: str):
                 if col_type == ColumnType.FACT:
                     operations = ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"]
                 elif col_type == ColumnType.TIME_DIMENSION:
-                    operations = ["Group By", "Count", "Don't Show"]
+                    operations = ["Group By", "Count", "Truncate to Day", "Truncate to Month", "Don't Show"]
                 else:  # Dimension
                     operations = ["Group By", "Count", "Don't Show"]
                 
@@ -375,28 +374,33 @@ def display_semantic_model_columns(model_path: str):
                     )
                 })
                 
-                # Update the operations in session state
+                # Update the operation in session state
                 st.session_state.column_operations[col_key] = {
                     "results": operations_data[-1]["Results"],
                     "filter": operations_data[-1]["Filter"]
                 }
             
-            # Add Generate Prompt button
-            if st.button("Generate Prompt", type="primary"):
-                prompt = generate_prompt_from_selections()
-                # Store the prompt in session state
-                st.session_state.show_prompt_preview = True
-                st.session_state.pending_prompt = prompt
+            # Clean up operations for columns that are no longer selected
+            for col_key in list(st.session_state.column_operations.keys()):
+                if col_key not in st.session_state.selected_columns:
+                    del st.session_state.column_operations[col_key]
             
-            # Display the prompt preview and Send to Chat button if available
-            if st.session_state.get("show_prompt_preview") and st.session_state.get("pending_prompt"):
-                st.markdown("### Generated Prompt")
-                prompt = st.session_state.pending_prompt
-                
-                # Use text area to allow editing
+            # Add Generate Prompt button and editable prompt area
+            # Full width Generate Prompt button
+            if st.button("Generate Prompt", use_container_width=True, type="primary"):
+                prompt = generate_prompt_from_selections()
+                # Store the prompt in session state to display in the preview area
+                st.session_state.pending_prompt = prompt
+                st.session_state.show_prompt_preview = True
+                st.rerun()  # Rerun to show the preview
+            
+            # If we have a pending prompt, show the preview
+            if st.session_state.show_prompt_preview and st.session_state.pending_prompt:
+                st.markdown("### Preview Prompt")
+                # Create an editable text area for the prompt
                 edited_prompt = st.text_area(
-                    "Review and edit your prompt if needed:", 
-                    value=prompt,
+                    "Edit your prompt before sending:",
+                    value=st.session_state.pending_prompt,
                     height=100,
                     key="prompt_editor"
                 )
@@ -450,6 +454,12 @@ def generate_prompt_from_selections() -> str:
             if ops["results"] == "Group By":
                 result_parts.append(qualified_col_name)
                 group_by_parts.append(qualified_col_name)
+            elif ops["results"] == "Truncate to Day":
+                result_parts.append(f"truncate {qualified_col_name} to day")
+                group_by_parts.append(f"truncate {qualified_col_name} to day")
+            elif ops["results"] == "Truncate to Month":
+                result_parts.append(f"truncate {qualified_col_name} to month")
+                group_by_parts.append(f"truncate {qualified_col_name} to month")
             else:
                 result_parts.append(f"{ops['results']} of {qualified_col_name}")
     
@@ -733,7 +743,40 @@ def display_sql_query(
                 elif df.empty:
                     st.write("Query returned no data")
                 else:
-                    st.dataframe(df, use_container_width=True)
+                    # Calculate approximate memory usage
+                    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+
+                    # More aggressive row limit for large datasets
+                    if df_size_mb > 20:  # If estimated size is over 20MB, use stricter limit
+                        # Calculate a reasonable row limit based on size
+                        # If 5,000 rows is 0.75 MB (from testing), we can estimate how many rows would reach ~10 MB
+                        estimated_row_size_kb = (df_size_mb * 1024) / len(df)  # KB per row
+                        safe_row_limit = int(10 * 1024 / estimated_row_size_kb)  # Rows for ~10 MB
+                        
+                        # Cap between 5,000 and 20,000
+                        ROW_DISPLAY_LIMIT = max(5000, min(safe_row_limit, 20000))
+                    else:
+                        ROW_DISPLAY_LIMIT = 10000
+                    
+                    # Apply row limit for display
+                    if len(df) > ROW_DISPLAY_LIMIT:
+                        display_df = df.head(ROW_DISPLAY_LIMIT)
+                        st.info(f"Showing first {ROW_DISPLAY_LIMIT:,} rows of {len(df):,} total rows to avoid size limitations.")
+                    else:
+                        display_df = df
+                    
+                    try:
+                        st.dataframe(display_df, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error displaying dataframe: {str(e)}")
+                        # If display fails, try with even fewer rows
+                        st.write("Attempting to display with fewer rows...")
+                        try:
+                            st.dataframe(display_df.head(1000), use_container_width=True)
+                        except Exception as e2:
+                            st.error(f"Still failed with reduced rows: {str(e2)}")
+                    
+                    # Pass a potentially reduced dataframe to chart display to avoid memory issues
                     display_chart(df, message_index)
     else:
         # Display a message indicating SQL execution is disabled
@@ -760,8 +803,43 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             st.error("Could not process data into proper format for visualization")
             return
 
-    # Limit to the top 5000 rows for visualization
-    df_display = df.head(5000)
+    # Calculate dataframe size for optimizations
+    df_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+    
+    # Calculate a reasonable row limit for visualization based on size
+    if df_size_mb > 0:
+        # Estimate how many rows would reach ~8 MB (safe for visualization)
+        estimated_row_size_kb = (df_size_mb * 1024) / len(df)  # KB per row
+        safe_row_limit = int(8 * 1024 / estimated_row_size_kb)  # Rows for ~8 MB
+        
+        # Cap between 3,000 and 20,000 rows
+        MAX_CHART_ROWS = max(3000, min(safe_row_limit, 20000))
+    else:
+        MAX_CHART_ROWS = 3000
+
+    # Apply the dynamic row limit
+    if len(df) > MAX_CHART_ROWS:
+        st.info(f"Chart visualization is limited to the first {MAX_CHART_ROWS:,} rows of {len(df):,} total rows.")
+        df_display = df.head(MAX_CHART_ROWS)
+    else:
+        df_display = df
+    
+    # Further optimize the dataframe if it's still large
+    display_size_mb = df_display.memory_usage(deep=True).sum() / (1024 * 1024)
+    if display_size_mb > 10:  # If still over 10MB
+        # Convert float64 to float32 and int64 to int32 to reduce memory
+        for col in df_display.select_dtypes(include=['float64']).columns:
+            df_display[col] = df_display[col].astype('float32')
+        
+        for col in df_display.select_dtypes(include=['int64']).columns:
+            df_display[col] = df_display[col].astype('int32')
+        
+        # For string columns, limit the length if any are excessively long
+        for col in df_display.select_dtypes(include=['object']).columns:
+            # Check if we have any long string values
+            max_len = df_display[col].astype(str).map(len).max()
+            if max_len > 100:  # If strings longer than 100 chars
+                df_display[col] = df_display[col].astype(str).str.slice(0, 100)
     
     # Identify column types
     numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
@@ -781,7 +859,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if kpi_result:
                 # KPI tiles were already rendered by create_chart10
                 # Just show the "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     
@@ -982,7 +1060,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if isinstance(alt_chart, pdk.Deck):
                 st.pydeck_chart(alt_chart)
                 # For maps (Chart 11), show "Open in Map Designer" button
-                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}"):
+                if st.button("Open in Map Designer", key=f"send_to_map_designer_{message_index}", type="primary"):
                     if "map_transfer" not in st.session_state:
                         st.session_state.map_transfer = {}
                     
@@ -1019,7 +1097,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             else:
                 st.altair_chart(alt_chart, use_container_width=True)
                 # For non-map charts (Chart 1-10), show "Open in Designer" button
-                if st.button("Open in Designer", key=f"send_to_designer_{message_index}"):
+                if st.button("Open in Designer", key=f"send_to_designer_{message_index}", type="primary"):
                     if "report_transfer" not in st.session_state:
                         st.session_state.report_transfer = {}
                     

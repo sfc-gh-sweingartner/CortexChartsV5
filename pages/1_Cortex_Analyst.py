@@ -407,12 +407,13 @@ def display_semantic_model_columns(model_path: str):
                 
                 # Add Send to Chat button
                 if st.button("Send to Chat", type="primary"):
-                    # Store the edited prompt to be used in chat input
-                    st.session_state.generated_prompt = edited_prompt
+                    # Instead of just storing the prompt, directly process it
+                    prompt = edited_prompt
                     st.session_state.show_prompt_preview = False
                     st.session_state.pending_prompt = None
-                    # Navigate to the chat input
-                    st.rerun()
+                    # Process the prompt directly
+                    process_user_input(prompt)
+                    # No need for st.rerun() since process_user_input will rerun
                 
                 # Add Clear button
                 if st.button("Clear", type="secondary"):
@@ -843,7 +844,32 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
     
     # Identify column types
     numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
+    
+    # Enhanced date column detection - also look for date-like string columns
     date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
+    
+    # If no date columns found, try to detect string columns that might contain dates
+    if not date_cols:
+        # Look for columns with common date-related names
+        date_name_candidates = [col for col in df_display.columns 
+                               if any(term in col.lower() for term in ['date', 'time', 'day', 'month', 'year'])]
+        
+        # Try to convert these columns to datetime
+        for col in date_name_candidates:
+            if col not in numeric_cols and col not in date_cols:  # Skip if already classified
+                try:
+                    # Sample a few values to check if they can be parsed as dates
+                    sample = df_display[col].dropna().head(5)
+                    if not sample.empty:
+                        pd.to_datetime(sample, errors='raise')
+                        # If successful, add to date columns and create a datetime version
+                        date_cols.append(col)
+                        # No need to convert the actual column, just identify it as a date column
+                except (ValueError, TypeError):
+                    # Not a date column, continue checking others
+                    pass
+    
+    # Identify remaining text columns (those that are neither numeric nor dates)
     text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
     
     try:
@@ -1032,6 +1058,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     chart_type = "Chart 8: Multi-Dimension Bubble"
             
             # Case: Any number of text columns (1+) + one numeric column = Chart 9 (Bar Chart with Selectors)
+            # IMPORTANT: This is a fallback option and should only be used when no other chart type matches
             elif len(text_cols) >= 1 and len(numeric_cols) >= 1:
                 chart_metadata = {
                     'chart9_columns': {

@@ -286,7 +286,7 @@ def display_semantic_model_columns(model_path: str):
                     
                     # Add sample values if available
                     sample_text = ""
-                    if col.sample_values and len(col.sample_values) > 0:
+                    if hasattr(col, 'sample_values') and col.sample_values and len(col.sample_values) > 0:
                         samples = ", ".join([str(v) for v in col.sample_values[:3]])
                         sample_text = f"\n<strong>Examples:</strong> {samples}"
                     

@@ -478,20 +478,19 @@ def handle_user_inputs():
     # Get the generated prompt if it exists
     prompt_from_generator = st.session_state.get("generated_prompt")
     
-    # Handle chat input - use the generated prompt if available
+    # Handle chat input - Streamlit in Snowflake doesn't support the 'value' parameter
+    user_input = st.chat_input(
+        "What is your question?",
+        key="chat_input"
+    )
+    
+    # If we have a generated prompt, display it prominently above the chat input
     if prompt_from_generator:
-        user_input = st.chat_input(
-            "What is your question?", 
-            value=prompt_from_generator,
-            key="chat_input"
-        )
-        # Clear the generated prompt immediately to avoid reusing it
+        # Display the prompt in a highly visible way
+        st.markdown("### 👇 Click in chat input below and paste this prompt:")
+        st.code(prompt_from_generator, language=None)
+        # Clear the generated prompt after displaying it
         st.session_state.generated_prompt = None
-    else:
-        user_input = st.chat_input(
-            "What is your question?",
-            key="chat_input"
-        )
     
     # Process user input when provided
     if user_input:

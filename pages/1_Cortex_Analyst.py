@@ -407,11 +407,10 @@ def display_semantic_model_columns(model_path: str):
                 
                 # Add Send to Chat button
                 if st.button("Send to Chat", type="primary"):
-                    # Store the edited prompt to be used in chat input
-                    st.session_state.generated_prompt = edited_prompt
+                    # Instead of storing for later display, process the prompt immediately
+                    process_user_input(edited_prompt)
                     st.session_state.show_prompt_preview = False
                     st.session_state.pending_prompt = None
-                    # Navigate to the chat input
                     st.rerun()
                 
                 # Add Clear button
@@ -485,22 +484,11 @@ def generate_prompt_from_selections() -> str:
 
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
-    # Get the generated prompt if it exists
-    prompt_from_generator = st.session_state.get("generated_prompt")
-    
     # Handle chat input - Streamlit in Snowflake doesn't support the 'value' parameter
     user_input = st.chat_input(
         "What is your question?",
         key="chat_input"
     )
-    
-    # If we have a generated prompt, display it prominently above the chat input
-    if prompt_from_generator:
-        # Display the prompt in a highly visible way
-        st.markdown("### 👇 Click in chat input below and paste this prompt:")
-        st.code(prompt_from_generator, language=None)
-        # Clear the generated prompt after displaying it
-        st.session_state.generated_prompt = None
     
     # Process user input when provided
     if user_input:
@@ -1022,66 +1010,19 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         
         # If map visualization wasn't created or failed, try other chart types
         if not chart_created:
-            # Chart Type 8: Multiple dimension columns, multiple fact columns - Multi-Dimension Bubble
-            if len(dimension_cols) >= 2 and len(fact_cols) >= 3:
+            # Chart Type 1: Single time dimension column and single fact column - Line Chart
+            if len(time_dimension_cols) >= 1 and len(fact_cols) >= 1:
                 chart_metadata = {
-                    'chart8_columns': {
-                        'text_col1': dimension_cols[0],
-                        'text_col2': dimension_cols[1],
-                        'num_col1': fact_cols[0],
-                        'num_col2': fact_cols[1],
-                        'num_col3': fact_cols[2]
-                    }
-                }
-                df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart8(df_display, chart_metadata['chart8_columns'])
-                if alt_chart:
-                    chart_created = True
-            
-            # Chart Type 7: One dimension column, three fact columns - Bubble Chart
-            if not chart_created and len(dimension_cols) >= 1 and len(fact_cols) >= 3:
-                chart_metadata = {
-                    'chart7_columns': {
-                        'text_col': dimension_cols[0],
-                        'num_col1': fact_cols[0],
-                        'num_col2': fact_cols[1],
-                        'num_col3': fact_cols[2]
-                    }
-                }
-                df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart7(df_display, chart_metadata['chart7_columns'])
-                if alt_chart:
-                    chart_created = True
-            
-            # Chart Type 4: Time dimension column, multiple dimension columns, and fact column - Stacked Bar with Selector
-            if not chart_created and len(time_dimension_cols) >= 1 and len(dimension_cols) >= 2 and len(fact_cols) >= 1:
-                chart_metadata = {
-                    'chart4_columns': {
+                    'chart1_columns': {
                         'date_col': time_dimension_cols[0],
-                        'text_cols': dimension_cols,
                         'numeric_col': fact_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart4(df_display, chart_metadata['chart4_columns'])
+                alt_chart = create_chart1(df_display, chart_metadata['chart1_columns'])
                 if alt_chart:
                     chart_created = True
-            
-            # Chart Type 6: Two dimension columns, two fact columns - Multi-Dimension Scatter
-            if not chart_created and len(dimension_cols) >= 2 and len(fact_cols) >= 2:
-                chart_metadata = {
-                    'chart6_columns': {
-                        'text_col1': dimension_cols[0],
-                        'text_col2': dimension_cols[1],
-                        'num_col1': fact_cols[0],
-                        'num_col2': fact_cols[1]
-                    }
-                }
-                df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
-                if alt_chart:
-                    chart_created = True
-            
+                    
             # Chart Type 2: Single time dimension column, two fact columns - Dual Axis Line Chart
             if not chart_created and len(time_dimension_cols) >= 1 and len(fact_cols) >= 2:
                 chart_metadata = {
@@ -1110,6 +1051,20 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
+            # Chart Type 4: Time dimension column, multiple dimension columns, and fact column - Stacked Bar with Selector
+            if not chart_created and len(time_dimension_cols) >= 1 and len(dimension_cols) >= 2 and len(fact_cols) >= 1:
+                chart_metadata = {
+                    'chart4_columns': {
+                        'date_col': time_dimension_cols[0],
+                        'text_cols': dimension_cols,
+                        'numeric_col': fact_cols[0]
+                    }
+                }
+                df_display.attrs['chart_metadata'] = chart_metadata
+                alt_chart = create_chart4(df_display, chart_metadata['chart4_columns'])
+                if alt_chart:
+                    chart_created = True
+            
             # Chart Type 5: Two fact columns and one dimension column - Scatter Plot
             if not chart_created and len(time_dimension_cols) == 0 and len(fact_cols) >= 2 and len(dimension_cols) >= 1:
                 chart_metadata = {
@@ -1124,21 +1079,54 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 1: Single time dimension column and single fact column - Line Chart
-            if not chart_created and len(time_dimension_cols) >= 1 and len(fact_cols) >= 1:
+            # Chart Type 6: Two dimension columns, two fact columns - Multi-Dimension Scatter
+            if not chart_created and len(dimension_cols) >= 2 and len(fact_cols) >= 2:
                 chart_metadata = {
-                    'chart1_columns': {
-                        'date_col': time_dimension_cols[0],
-                        'numeric_col': fact_cols[0]
+                    'chart6_columns': {
+                        'text_col1': dimension_cols[0],
+                        'text_col2': dimension_cols[1],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart1(df_display, chart_metadata['chart1_columns'])
+                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
+                if alt_chart:
+                    chart_created = True
+            
+            # Chart Type 7: One dimension column, three fact columns - Bubble Chart
+            if not chart_created and len(dimension_cols) >= 1 and len(fact_cols) >= 3:
+                chart_metadata = {
+                    'chart7_columns': {
+                        'text_col': dimension_cols[0],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1],
+                        'num_col3': fact_cols[2]
+                    }
+                }
+                df_display.attrs['chart_metadata'] = chart_metadata
+                alt_chart = create_chart7(df_display, chart_metadata['chart7_columns'])
+                if alt_chart:
+                    chart_created = True
+            
+            # Chart Type 8: Multiple dimension columns, multiple fact columns - Multi-Dimension Bubble
+            if not chart_created and len(dimension_cols) >= 2 and len(fact_cols) >= 3:
+                chart_metadata = {
+                    'chart8_columns': {
+                        'text_col1': dimension_cols[0],
+                        'text_col2': dimension_cols[1],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1],
+                        'num_col3': fact_cols[2]
+                    }
+                }
+                df_display.attrs['chart_metadata'] = chart_metadata
+                alt_chart = create_chart8(df_display, chart_metadata['chart8_columns'])
                 if alt_chart:
                     chart_created = True
             
             # Chart Type 9: Dimension columns and fact columns - Bar Chart with Selectors
-            if not chart_created and len(time_dimension_cols) == 0 and len(dimension_cols) >= 1 and len(fact_cols) >= 1:
+            if not chart_created and len(dimension_cols) >= 1 and len(fact_cols) >= 1:
                 chart_metadata = {
                     'chart9_columns': {
                         'text_cols': dimension_cols,

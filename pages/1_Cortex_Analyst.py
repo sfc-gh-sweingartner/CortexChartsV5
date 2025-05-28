@@ -80,6 +80,8 @@ def reset_session_state():
     st.session_state.selected_columns = set()  # Selected columns from semantic model
     st.session_state.column_operations = {}  # Operations for selected columns
     st.session_state.generated_prompt = None  # Generated prompt from column selections
+    st.session_state.show_prompt_preview = False  # Flag to control prompt preview visibility
+    st.session_state.pending_prompt = None  # Prompt waiting to be sent to chat
 
 
 def show_header_and_sidebar():
@@ -383,16 +385,36 @@ def display_semantic_model_columns(model_path: str):
             if st.button("Generate Prompt", type="primary"):
                 prompt = generate_prompt_from_selections()
                 # Store the prompt in session state
-                st.session_state.generated_prompt = prompt
+                st.session_state.show_prompt_preview = True
+                st.session_state.pending_prompt = prompt
+            
+            # Display the prompt preview and Send to Chat button if available
+            if st.session_state.get("show_prompt_preview") and st.session_state.get("pending_prompt"):
+                st.markdown("### Generated Prompt")
+                prompt = st.session_state.pending_prompt
                 
-                # Display the generated prompt for verification
-                st.info(f"Generated prompt: **{prompt}**. Click anywhere in the chat input box below and press Ctrl+V (or Cmd+V on Mac) to paste it.")
+                # Use text area to allow editing
+                edited_prompt = st.text_area(
+                    "Review and edit your prompt if needed:", 
+                    value=prompt,
+                    height=100,
+                    key="prompt_editor"
+                )
                 
-                # Use Streamlit's clipboard functionality to make it easy to copy
-                st.code(prompt, language=None)
+                # Add Send to Chat button
+                if st.button("Send to Chat", type="primary"):
+                    # Store the edited prompt to be used in chat input
+                    st.session_state.generated_prompt = edited_prompt
+                    st.session_state.show_prompt_preview = False
+                    st.session_state.pending_prompt = None
+                    # Navigate to the chat input
+                    st.rerun()
                 
-                # Rerun to ensure the prompt is available for the chat input
-                st.rerun()
+                # Add Clear button
+                if st.button("Clear", type="secondary"):
+                    st.session_state.show_prompt_preview = False
+                    st.session_state.pending_prompt = None
+                    st.rerun()
 
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
@@ -454,20 +476,26 @@ def generate_prompt_from_selections() -> str:
 def handle_user_inputs():
     """Handle user inputs from the chat interface."""
     # Get the generated prompt if it exists
-    default_input = st.session_state.get("generated_prompt", "")
+    prompt_from_generator = st.session_state.get("generated_prompt")
     
-    # Handle chat input - pass the default value from session state
-    user_input = st.chat_input(
-        "What is your question?", 
-        key="chat_input"
-    )
+    # Handle chat input - use the generated prompt if available
+    if prompt_from_generator:
+        user_input = st.chat_input(
+            "What is your question?", 
+            value=prompt_from_generator,
+            key="chat_input"
+        )
+        # Clear the generated prompt immediately to avoid reusing it
+        st.session_state.generated_prompt = None
+    else:
+        user_input = st.chat_input(
+            "What is your question?",
+            key="chat_input"
+        )
     
     # Process user input when provided
     if user_input:
         process_user_input(user_input)
-        # Clear the generated prompt after it's been used
-        if "generated_prompt" in st.session_state:
-            del st.session_state.generated_prompt
     # Handle suggested question click
     elif st.session_state.active_suggestion is not None:
         suggestion = st.session_state.active_suggestion

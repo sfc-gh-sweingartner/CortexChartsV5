@@ -537,46 +537,26 @@ def create_chart10(df, cols=None):
             st.warning("No numeric columns found for KPI tiles.")
             return None
         
-        # Create a special object to handle both direct rendering and deferred rendering
-        # This helps ensure compatibility with both Cortex Analyst and Dashboard
+        # Create a data object for rendering
         kpi_data = {
-            "type": "kpi_tiles",
-            "data": {
-                "df": df,
-                "numeric_cols": numeric_cols,
-                "labels": labels,
-                "n_cols": min(len(numeric_cols), 4)
-            },
-            "render_method": "_render_kpi_tiles"
+            "df": df,
+            "numeric_cols": numeric_cols,
+            "labels": labels,
+            "n_cols": min(len(numeric_cols), 4)
         }
         
-        # Always render KPIs in the Cortex Analyst page
-        # This simplifies our approach instead of using frame inspection
-        # The frame inspection was causing issues with KPI tiles not showing in Cortex Analyst
-        try:
-            calling_module = sys._getframe(1).f_globals.get('__name__', '')
-            
-            # Check if we're being called from display_chart in the Cortex_Analyst page
-            # or if we're in a context where we should directly render
-            render_directly = (
-                'pages.1_Cortex_Analyst' in calling_module or
-                'display_chart' in sys._getframe(1).f_code.co_name
-            )
-            
-            if render_directly:
-                _render_kpi_tiles(kpi_data["data"])
-                # Add a title with normal text size (not heading)
-                st.text("KPI Tiles")
-        except Exception as e:
-            # If there's an error with the frame inspection, fall back to direct rendering
-            # This ensures KPIs still show up even if the detection fails
-            print(f"Frame inspection error, falling back to direct rendering: {str(e)}")
-            _render_kpi_tiles(kpi_data["data"])
-            st.text("KPI Tiles")
+        # Always directly render the KPI tiles - no frame inspection needed
+        _render_kpi_tiles(kpi_data)
         
-        return kpi_data
+        # Add a title with normal text size (not heading)
+        st.text("KPI Tiles")
+        
+        # Return True to indicate successful rendering
+        return True
     except Exception as e:
         print(f"Error creating Chart 10: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return None
 
 
@@ -756,10 +736,10 @@ def generate_chart_code_for_dataframe(df):
                 print(f"        )", file=buf)
                 print(f"", file=buf)
                 print(f"    # Add a title for the KPI section", file=buf)
-                print(f"    st.markdown('### KPI Tiles')", file=buf)
+                print(f"    st.text('KPI Tiles')", file=buf)
                 print(f"", file=buf)
-                print(f"    # Return None as we've rendered the components directly", file=buf)
-                print(f"    return None", file=buf)
+                print(f"    # Return True to indicate successful rendering", file=buf)
+                print(f"    return True", file=buf)
                 
         elif 'chart1_columns' in chart_metadata:
             cols = chart_metadata['chart1_columns']

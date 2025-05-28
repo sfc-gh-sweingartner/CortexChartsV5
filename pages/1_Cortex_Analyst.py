@@ -841,17 +841,111 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
             if max_len > 100:  # If strings longer than 100 chars
                 df_display[col] = df_display[col].astype(str).str.slice(0, 100)
     
-    # Identify column types
-    numeric_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
-    date_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
-    text_cols = [col for col in df_display.columns if col not in numeric_cols and col not in date_cols]
-    
     try:
-        # Check for KPI tiles first (single row with numeric columns)
-        if len(df_display) == 1 and len(numeric_cols) >= 1:
+        # Get semantic model information to classify columns by their types
+        fact_cols = []
+        dimension_cols = []
+        time_dimension_cols = []
+        unclassified_cols = []
+        
+        try:
+            # Read the semantic model file
+            model_path = st.session_state.selected_semantic_model_path
+            file_path = model_path.split("@")[-1]  # Remove @ prefix if present
+            
+            try:
+                # For development and testing - try to read directly from local file system
+                with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
+                    yaml_content = f.read()
+            except FileNotFoundError:
+                # If local file not found, try using Snowpark to read from stage
+                # Handle different path formats more robustly
+                parts = file_path.split('/')
+                if len(parts) >= 2:
+                    # Extract the database, schema, and stage parts
+                    db_schema_parts = parts[0].split('.')
+                    if len(db_schema_parts) >= 2:
+                        database = db_schema_parts[0]
+                        schema = db_schema_parts[1]
+                        # The stage might be the third part of db_schema_parts or the second part of the path
+                        if len(db_schema_parts) >= 3:
+                            stage_name = db_schema_parts[2]
+                        else:
+                            stage_name = parts[1]
+                        
+                        # The file name is everything after the stage in the path
+                        if len(db_schema_parts) >= 3:
+                            file_name = '/'.join(parts[1:])
+                        else:
+                            file_name = '/'.join(parts[2:])
+                        
+                        # Use Snowpark SQL to read the file content
+                        query = f"""
+                        SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
+                        """
+                        result = session.sql(query).collect()
+                        if result and len(result) > 0:
+                            yaml_content = result[0][0]
+                        else:
+                            # Try an alternative query format for older Snowflake versions
+                            alt_query = f"""
+                            SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
+                            """
+                            try:
+                                result = session.sql(alt_query).collect()
+                                if result and len(result) > 0:
+                                    yaml_content = result[0][0]
+                                else:
+                                    raise ValueError(f"Could not read file from stage: {file_path}")
+                            except Exception as e:
+                                raise ValueError(f"Failed to read file with alternative method: {str(e)}")
+                    else:
+                        raise ValueError(f"Invalid database/schema format: {parts[0]}")
+                else:
+                    raise ValueError(f"Invalid stage path format: {file_path}")
+            
+            # Parse the semantic model
+            parser = SemanticModelParser(yaml_content)
+            tables = parser.parse()
+            
+            # Create a mapping of column names to their semantic types
+            column_type_map = {}
+            for table in tables:
+                for column in table.columns:
+                    # Storing both simple column name and qualified name (table.column)
+                    column_type_map[column.name.lower()] = column.column_type
+                    column_type_map[f"{table.name.lower()}.{column.name.lower()}"] = column.column_type
+            
+            # Classify each column in the dataframe
+            for col in df_display.columns:
+                col_lower = col.lower()
+                # Try to find the column in our mapping
+                if col_lower in column_type_map:
+                    col_type = column_type_map[col_lower]
+                    if col_type == ColumnType.FACT:
+                        fact_cols.append(col)
+                    elif col_type == ColumnType.DIMENSION:
+                        dimension_cols.append(col)
+                    elif col_type == ColumnType.TIME_DIMENSION:
+                        time_dimension_cols.append(col)
+                else:
+                    # If not found in mapping, add to unclassified
+                    unclassified_cols.append(col)
+            
+        except Exception as e:
+            # If we can't get semantic model info, fall back to type inference
+            st.warning(f"Unable to classify columns based on semantic model: {str(e)}. Falling back to data type inference.")
+            # Identify column types based on data types
+            fact_cols = [col for col in df_display.columns if pd.api.types.is_numeric_dtype(df_display[col])]
+            time_dimension_cols = [col for col in df_display.columns if pd.api.types.is_datetime64_any_dtype(df_display[col])]
+            dimension_cols = [col for col in df_display.columns if col not in fact_cols and col not in time_dimension_cols]
+            unclassified_cols = []
+        
+        # Check for KPI tiles first (single row with fact columns)
+        if len(df_display) == 1 and len(fact_cols) >= 1:
             chart_metadata = {
                 'chart10_columns': {
-                    'numeric_cols': numeric_cols
+                    'numeric_cols': fact_cols
                 }
             }
             df_display.attrs['chart_metadata'] = chart_metadata
@@ -907,8 +1001,9 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         
         if lat_cols and lon_cols:
             value_col = None
-            if len(numeric_cols) > 0:
-                for col in numeric_cols:
+            if len(fact_cols) > 0:
+                # Prefer using a fact column for the value
+                for col in fact_cols:
                     if col not in lat_cols and col not in lon_cols:
                         value_col = col
                         break
@@ -927,15 +1022,15 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         
         # If map visualization wasn't created or failed, try other chart types
         if not chart_created:
-            # Chart Type 8: Multiple text columns, multiple numeric columns - Multi-Dimension Bubble
-            if len(text_cols) >= 2 and len(numeric_cols) >= 3:
+            # Chart Type 8: Multiple dimension columns, multiple fact columns - Multi-Dimension Bubble
+            if len(dimension_cols) >= 2 and len(fact_cols) >= 3:
                 chart_metadata = {
                     'chart8_columns': {
-                        'text_col1': text_cols[0],
-                        'text_col2': text_cols[1],
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1],
-                        'num_col3': numeric_cols[2]
+                        'text_col1': dimension_cols[0],
+                        'text_col2': dimension_cols[1],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1],
+                        'num_col3': fact_cols[2]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -943,14 +1038,14 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 7: One text column, three numeric columns - Bubble Chart
-            if not chart_created and len(text_cols) >= 1 and len(numeric_cols) >= 3:
+            # Chart Type 7: One dimension column, three fact columns - Bubble Chart
+            if not chart_created and len(dimension_cols) >= 1 and len(fact_cols) >= 3:
                 chart_metadata = {
                     'chart7_columns': {
-                        'text_col': text_cols[0],
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1],
-                        'num_col3': numeric_cols[2]
+                        'text_col': dimension_cols[0],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1],
+                        'num_col3': fact_cols[2]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -958,13 +1053,13 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 4: Date column, multiple categorical columns, and numeric column - Stacked Bar with Selector
-            if not chart_created and len(date_cols) >= 1 and len(text_cols) >= 2 and len(numeric_cols) >= 1:
+            # Chart Type 4: Time dimension column, multiple dimension columns, and fact column - Stacked Bar with Selector
+            if not chart_created and len(time_dimension_cols) >= 1 and len(dimension_cols) >= 2 and len(fact_cols) >= 1:
                 chart_metadata = {
                     'chart4_columns': {
-                        'date_col': date_cols[0],
-                        'text_cols': text_cols,
-                        'numeric_col': numeric_cols[0]
+                        'date_col': time_dimension_cols[0],
+                        'text_cols': dimension_cols,
+                        'numeric_col': fact_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -972,14 +1067,14 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 6: Two text columns, two numeric columns - Multi-Dimension Scatter
-            if not chart_created and len(text_cols) >= 2 and len(numeric_cols) >= 2:
+            # Chart Type 6: Two dimension columns, two fact columns - Multi-Dimension Scatter
+            if not chart_created and len(dimension_cols) >= 2 and len(fact_cols) >= 2:
                 chart_metadata = {
                     'chart6_columns': {
-                        'text_col1': text_cols[0],
-                        'text_col2': text_cols[1],
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1]
+                        'text_col1': dimension_cols[0],
+                        'text_col2': dimension_cols[1],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -987,13 +1082,13 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 2: Single date column, two numeric columns - Dual Axis Line Chart
-            if not chart_created and len(date_cols) >= 1 and len(numeric_cols) >= 2:
+            # Chart Type 2: Single time dimension column, two fact columns - Dual Axis Line Chart
+            if not chart_created and len(time_dimension_cols) >= 1 and len(fact_cols) >= 2:
                 chart_metadata = {
                     'chart2_columns': {
-                        'date_col': date_cols[0],
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1]
+                        'date_col': time_dimension_cols[0],
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -1001,13 +1096,13 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 3: Date column, categorical column, and numeric column - Stacked Bar Chart
-            if not chart_created and len(date_cols) >= 1 and len(text_cols) == 1 and len(numeric_cols) >= 1:
+            # Chart Type 3: Time dimension column, dimension column, and fact column - Stacked Bar Chart
+            if not chart_created and len(time_dimension_cols) >= 1 and len(dimension_cols) == 1 and len(fact_cols) >= 1:
                 chart_metadata = {
                     'chart3_columns': {
-                        'date_col': date_cols[0],
-                        'text_col': text_cols[0],
-                        'numeric_col': numeric_cols[0]
+                        'date_col': time_dimension_cols[0],
+                        'text_col': dimension_cols[0],
+                        'numeric_col': fact_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -1015,13 +1110,13 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 5: Two numeric columns and one text column - Scatter Plot
-            if not chart_created and len(date_cols) == 0 and len(numeric_cols) >= 2 and len(text_cols) >= 1:
+            # Chart Type 5: Two fact columns and one dimension column - Scatter Plot
+            if not chart_created and len(time_dimension_cols) == 0 and len(fact_cols) >= 2 and len(dimension_cols) >= 1:
                 chart_metadata = {
                     'chart5_columns': {
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1],
-                        'text_col': text_cols[0]
+                        'num_col1': fact_cols[0],
+                        'num_col2': fact_cols[1],
+                        'text_col': dimension_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -1029,12 +1124,12 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 1: Single date column and single numeric column - Line Chart
-            if not chart_created and len(date_cols) >= 1 and len(numeric_cols) >= 1:
+            # Chart Type 1: Single time dimension column and single fact column - Line Chart
+            if not chart_created and len(time_dimension_cols) >= 1 and len(fact_cols) >= 1:
                 chart_metadata = {
                     'chart1_columns': {
-                        'date_col': date_cols[0],
-                        'numeric_col': numeric_cols[0]
+                        'date_col': time_dimension_cols[0],
+                        'numeric_col': fact_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
@@ -1042,12 +1137,12 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
             
-            # Chart Type 9: Text columns and numeric columns - Bar Chart with Selectors (only when no date columns)
-            if not chart_created and len(date_cols) == 0 and len(text_cols) >= 1 and len(numeric_cols) >= 1:
+            # Chart Type 9: Dimension columns and fact columns - Bar Chart with Selectors
+            if not chart_created and len(time_dimension_cols) == 0 and len(dimension_cols) >= 1 and len(fact_cols) >= 1:
                 chart_metadata = {
                     'chart9_columns': {
-                        'text_cols': text_cols,
-                        'numeric_col': numeric_cols[0]
+                        'text_cols': dimension_cols,
+                        'numeric_col': fact_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata

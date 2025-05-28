@@ -1,3 +1,4 @@
+-- [DEPRECATED] This file is kept for reference only. Please use connectMapBoxNoKey.sql instead.
 -- Mapbox Integration Setup Script for Cortex Analyst V3
 -- This script configures Mapbox integration in Snowflake for the Streamlit app
 -- Prerequisites: ACCOUNTADMIN role access and valid Mapbox API key

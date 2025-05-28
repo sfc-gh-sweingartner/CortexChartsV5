@@ -52,8 +52,7 @@ The following table outlines the requirements for each type of visualization:
 ## Configuration
 Before running the application, ensure you have:
 1. Valid Snowflake credentials
-2. MapBox API key (for the background map for geospatial features) 
-3. Proper database permissions
+2. Proper database permissions
 
 
 ## How to Deploy the App
@@ -74,9 +73,9 @@ Before running the application, ensure you have:
 15. Open the code editor panel and edit which yaml file(s) (i.e. semantic model) that your solution is going to use.  You will find the line to alter at line 50 of the /pages/1_Cortex_Analyst.py file
 16. Add the following packages via the drop down box above the code: altair, branca, h3-py, matplotlib-base, numpy, pandas, plotly, pydeck, scipy 
 17. Click the blue "Run" button (It will take a minute to download all those map libraries)
-18. Note that background maps won't work until you set up mapbox.  
+18. Set up network access for maps using the instructions below.
 
-## How to Set Up Mapbox
+## How to Set Up Map Access
 
 ### Prerequisites
 - ACCOUNTADMIN role access in Snowflake
@@ -85,28 +84,21 @@ Before running the application, ensure you have:
 
 ### Step-by-Step Setup
 
-1. **Get Mapbox Access Token**:
-   - Create/sign in to your account at mapbox.com
-   - Go to Account Settings > Access Tokens
-   - Copy your default public token or create a new one
-   - Keep this token handy for the configuration
-
-2. **Configure the Script**:
-   - Open `connectMapBox.sql` in your editor
-   - Update your Mapbox API key in the MAPBOX_API_KEY variable
+1. **Configure Network Access**:
+   - Open `connectMapBoxNoKey.sql` in your editor
    - When you get to the ALTER STREAMLIT statement:
      - Run the SHOW STREAMLITS command first
      - Find your app with title 'CortexChartsV4'
      - Copy its "name" value (an auto-generated ID like 'FFLFTTR_22W04CI0')
-     - Replace "REPLACE_WITH_YOUR_APP_NAME" with this value
+     - Replace "YOUR_STREAMLIT_APP_NAME" with this value
 
-4. **Execute the Script**:
+2. **Execute the Script**:
    - Connect to Snowflake as ACCOUNTADMIN
    - Execute each section of the script in sequence
    - Pay attention to the verification steps after each section
    - Fix any errors before proceeding to the next section
 
-5. **Verify Setup**:
+3. **Verify Setup**:
    - Refresh your Streamlit app
    - Open the Map Designer page
    - Confirm that map backgrounds load correctly
@@ -114,10 +106,11 @@ Before running the application, ensure you have:
 ### Troubleshooting
 If maps don't load:
 - Verify all SHOW commands in the script return expected results
-- Check that your Mapbox API key is valid
 - Ensure your app ID is correct in the ALTER STREAMLIT statement
 - Confirm all grants were successful
 - Try refreshing your browser cache
+- Check the Network Logs in your browser's developer tools for requests to Mapbox servers
+- If all else fails, you might need to use a personal Mapbox API key (refer to the original connectMapBox.sql)
 
 
 

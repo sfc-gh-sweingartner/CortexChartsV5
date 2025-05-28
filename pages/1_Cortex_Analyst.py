@@ -77,11 +77,27 @@ def reset_session_state():
     st.session_state.active_suggestion = None  # Currently selected suggestion
     st.session_state.warnings = []  # List to store warnings
     st.session_state.form_submitted = {}  # Dictionary to store feedback submission for each request
+    
+    # Clear column selections
     st.session_state.selected_columns = set()  # Selected columns from semantic model
     st.session_state.column_operations = {}  # Operations for selected columns
+    
+    # Clear prompt related state
     st.session_state.generated_prompt = None  # Generated prompt from column selections
     st.session_state.show_prompt_preview = False  # Flag to control prompt preview visibility
     st.session_state.pending_prompt = None  # Prompt waiting to be sent to chat
+    
+    # Clear column checkbox states
+    # Find and clear all column selection checkboxes by looking for keys with 'col_' prefix
+    keys_to_clear = [key for key in st.session_state.keys() if key.startswith('col_')]
+    for key in keys_to_clear:
+        st.session_state[key] = False
+    
+    # Clear other UI state related to column operations
+    operation_keys = [key for key in st.session_state.keys() 
+                     if key.startswith('results_') or key.startswith('filter_')]
+    for key in operation_keys:
+        st.session_state.pop(key, None)  # Remove the key if it exists
 
 
 def show_header_and_sidebar():
@@ -989,38 +1005,24 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         
         # If no date column and chart not created yet
         if not chart_created and len(date_cols) == 0:
-            # Case: One text column + two numeric columns = Chart 5 (Scatter Plot)
-            if len(text_cols) == 1 and len(numeric_cols) >= 2:
+            # Case: Multiple text columns (2+) + multiple numeric columns (3+) = Chart 8 (Multi-Dimension Bubble)
+            # Check for Chart 8 first as it's more specific than Chart 6
+            if len(text_cols) >= 2 and len(numeric_cols) >= 3:
                 chart_metadata = {
-                    'chart5_columns': {
-                        'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1],
-                        'text_col': text_cols[0]
-                    }
-                }
-                df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart5(df_display, chart_metadata['chart5_columns'])
-                
-                if alt_chart:
-                    chart_created = True
-                    chart_type = "Chart 5: Scatter Plot"
-            
-            # Case: Two text columns + two numeric columns = Chart 6 (Multi-Dimension Scatter)
-            elif len(text_cols) >= 2 and len(numeric_cols) >= 2:
-                chart_metadata = {
-                    'chart6_columns': {
+                    'chart8_columns': {
                         'text_col1': text_cols[0],
                         'text_col2': text_cols[1],
                         'num_col1': numeric_cols[0],
-                        'num_col2': numeric_cols[1]
+                        'num_col2': numeric_cols[1],
+                        'num_col3': numeric_cols[2]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
+                alt_chart = create_chart8(df_display, chart_metadata['chart8_columns'])
                 
                 if alt_chart:
                     chart_created = True
-                    chart_type = "Chart 6: Multi-Dimension Scatter"
+                    chart_type = "Chart 8: Multi-Dimension Bubble"
             
             # Case: One text column + three numeric columns = Chart 7 (Bubble Chart)
             elif len(text_cols) == 1 and len(numeric_cols) >= 3:
@@ -1038,24 +1040,40 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                 if alt_chart:
                     chart_created = True
                     chart_type = "Chart 7: Bubble Chart"
-            
-            # Case: Multiple text columns (2+) + multiple numeric columns (3+) = Chart 8 (Multi-Dimension Bubble)
-            elif len(text_cols) >= 2 and len(numeric_cols) >= 3:
+                    
+            # Case: One text column + two numeric columns = Chart 5 (Scatter Plot)
+            elif len(text_cols) == 1 and len(numeric_cols) >= 2:
                 chart_metadata = {
-                    'chart8_columns': {
-                        'text_col1': text_cols[0],
-                        'text_col2': text_cols[1],
+                    'chart5_columns': {
                         'num_col1': numeric_cols[0],
                         'num_col2': numeric_cols[1],
-                        'num_col3': numeric_cols[2]
+                        'text_col': text_cols[0]
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart8(df_display, chart_metadata['chart8_columns'])
+                alt_chart = create_chart5(df_display, chart_metadata['chart5_columns'])
                 
                 if alt_chart:
                     chart_created = True
-                    chart_type = "Chart 8: Multi-Dimension Bubble"
+                    chart_type = "Chart 5: Scatter Plot"
+            
+            # Case: Two text columns + two numeric columns = Chart 6 (Multi-Dimension Scatter)
+            # Modified to be more specific - exactly 2 numeric columns
+            elif len(text_cols) >= 2 and len(numeric_cols) == 2:
+                chart_metadata = {
+                    'chart6_columns': {
+                        'text_col1': text_cols[0],
+                        'text_col2': text_cols[1],
+                        'num_col1': numeric_cols[0],
+                        'num_col2': numeric_cols[1]
+                    }
+                }
+                df_display.attrs['chart_metadata'] = chart_metadata
+                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
+                
+                if alt_chart:
+                    chart_created = True
+                    chart_type = "Chart 6: Multi-Dimension Scatter"
             
             # Case: Any number of text columns (1+) + one numeric column = Chart 9 (Bar Chart with Selectors)
             # IMPORTANT: This is a fallback option and should only be used when no other chart type matches

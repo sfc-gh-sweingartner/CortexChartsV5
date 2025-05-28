@@ -1004,7 +1004,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     }
                     
                     # Navigate to Map Designer
-                    st.switch_page("pages/3_Map_Designer.py")
+                    st.switch_page("pages/4_Map_Designer.py")
             else:
                 st.altair_chart(alt_chart, use_container_width=True)
                 # For non-map charts (Chart 1-10), show "Open in Designer" button

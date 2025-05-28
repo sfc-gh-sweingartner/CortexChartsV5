@@ -1002,7 +1002,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     chart_created = True
             
             # Chart Type 3: Date column, categorical column, and numeric column - Stacked Bar Chart
-            if not chart_created and len(date_cols) >= 1 and len(text_cols) >= 1 and len(numeric_cols) >= 1:
+            if not chart_created and len(date_cols) >= 1 and len(text_cols) == 1 and len(numeric_cols) >= 1:
                 chart_metadata = {
                     'chart3_columns': {
                         'date_col': date_cols[0],
@@ -1016,7 +1016,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     chart_created = True
             
             # Chart Type 5: Two numeric columns and one text column - Scatter Plot
-            if not chart_created and len(numeric_cols) >= 2 and len(text_cols) >= 1:
+            if not chart_created and len(date_cols) == 0 and len(numeric_cols) >= 2 and len(text_cols) >= 1:
                 chart_metadata = {
                     'chart5_columns': {
                         'num_col1': numeric_cols[0],
@@ -1057,6 +1057,34 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         
         # Display the chart if one was created
         if chart_created and alt_chart:
+            # Display chart type information for debugging
+            chart_type = None
+            if 'chart1_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 1: Line Chart by Date"
+            elif 'chart2_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 2: Dual Axis Line Chart"
+            elif 'chart3_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 3: Stacked Bar Chart by Date"
+            elif 'chart4_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 4: Stacked Bar with Column Selector"
+            elif 'chart5_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 5: Scatter Plot"
+            elif 'chart6_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 6: Multi-Dimension Scatter"
+            elif 'chart7_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 7: Bubble Chart"
+            elif 'chart8_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 8: Multi-Dimension Bubble"
+            elif 'chart9_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 9: Bar Chart with Selectors"
+            elif 'chart10_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 10: KPI Tiles"
+            elif 'chart11_columns' in df_display.attrs.get('chart_metadata', {}):
+                chart_type = "Chart 11: Geospatial Map"
+            
+            if chart_type:
+                st.caption(f"**Selected Visualization**: {chart_type}")
+            
             if isinstance(alt_chart, pdk.Deck):
                 st.pydeck_chart(alt_chart)
                 # For maps (Chart 11), show "Open in Map Designer" button

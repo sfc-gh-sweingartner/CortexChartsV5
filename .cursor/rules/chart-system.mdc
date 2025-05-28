@@ -25,7 +25,7 @@ If no geospatial visualization was created or it failed, the system evaluates th
 - **Chart 6**: No date columns (0), two text columns (2), two numeric columns (2) → Multi-Dimension Scatter
 - **Chart 7**: No date columns (0), one text column (1), three numeric columns (3) → Bubble Chart
 - **Chart 8**: No date columns (0), multiple text columns (2+), multiple numeric columns (3+) → Multi-Dimension Bubble
-- **Chart 9**: Any text columns (1+), one numeric column (1) → Bar Chart with Selectors
+- **Chart 9**: No date columns (0), Any text columns (1+), one numeric column (1) → Bar Chart with Selectors
 - **Chart 10**: Single row with 1+ numeric columns → KPI Tiles
 - **Chart 11**: Data that has a latitude and longitude.  Produce a map and ignore all the other rules.  
 

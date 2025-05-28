@@ -104,3 +104,9 @@ Each phase is considered complete when:
 3. Documentation is updated
 4. Code review is approved
 5. User acceptance testing is successful
+
+## Version control
+1. I will do all of the testing in Streamlit in Snowflake rather than locally.  
+2. You are authorised to write every update to my git repository at
+https://github.com/sfc-gh-sweingartner/CortexChartsV4
+3. I will pull those changes from GIT into my Snowflake app and test there

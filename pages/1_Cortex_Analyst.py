@@ -48,7 +48,8 @@ st.set_page_config(
 # List of available semantic model paths in the format: <DATABASE>.<SCHEMA>.<STAGE>/<FILE-NAME>
 # Each path points to a YAML file defining a semantic model
 AVAILABLE_SEMANTIC_MODELS_PATHS = [
-    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
+    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml",
+    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml", 
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
 ]
@@ -219,12 +220,19 @@ def display_semantic_model_columns(model_path: str):
         # First, check the local file as it seems to be working
         local_yaml_content = None
         try:
-            # Check both direct path and Dev/ directory
+            # Check various local path combinations
             local_paths = [
                 f"Dev/{filename}",  # e.g., Dev/syntheav4.yaml
                 f"{filename}",      # e.g., syntheav4.yaml
-                f"Dev/yaml/{filename}"  # e.g., Dev/yaml/syntheav4.yaml
+                f"Dev/yaml/{filename}",  # e.g., Dev/yaml/syntheav4.yaml
+                f"Dev/synthea/{filename}",  # e.g., Dev/synthea/syntheav4.yaml
             ]
+            
+            # Also check with any 'synthea/' subfolder that might be in the path
+            if 'synthea/' in file_path:
+                synthea_part = '/'.join(file_path.split('/')[-2:])  # e.g., synthea/syntheav4.yaml
+                local_paths.append(f"Dev/{synthea_part}")
+                local_paths.append(synthea_part)
             
             for local_file_path in local_paths:
                 st.sidebar.write(f"**Checking Local File:** `{local_file_path}`")
@@ -247,6 +255,22 @@ def display_semantic_model_columns(model_path: str):
                         try:
                             import yaml
                             yaml_data = yaml.safe_load(local_yaml_content)
+                            
+                            # First show some basic info about the YAML structure
+                            if yaml_data and isinstance(yaml_data, dict):
+                                st.sidebar.write(f"**YAML structure:** Keys at root level: {', '.join(yaml_data.keys())}")
+                                
+                                # Count tables if they exist
+                                if "tables" in yaml_data and isinstance(yaml_data["tables"], list):
+                                    table_count = len(yaml_data["tables"])
+                                    st.sidebar.write(f"**Tables found:** {table_count}")
+                                    
+                                    # Show first few table names
+                                    if table_count > 0:
+                                        table_names = [t.get('name', 'unnamed') for t in yaml_data["tables"] if isinstance(t, dict)][:5]
+                                        st.sidebar.write(f"**First tables:** {', '.join(table_names[:5])}")
+                                
+                            # Check if it has tables section
                             if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
                                 st.sidebar.success("Local file contains valid YAML with 'tables' section")
                                 
@@ -400,8 +424,10 @@ def display_semantic_model_columns(model_path: str):
                 
                 # Special handling for known paths - use single quotes and exact path format
                 special_paths = {
-                    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml": 
-                        "@SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
+                    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml": 
+                        "@SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml",
+                    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml": 
+                        "@SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml",
                     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml": 
                         "@TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
                 }
@@ -444,10 +470,6 @@ def display_semantic_model_columns(model_path: str):
                                             # Local file has YAML errors, use stage content
                                             yaml_content = stage_yaml_content
                                             st.session_state["debug_load_method"] = "Special path query (incomplete)"
-                                    else:
-                                        # No valid local file, use stage content even if incomplete
-                                        yaml_content = stage_yaml_content
-                                        st.session_state["debug_load_method"] = "Special path query (incomplete)"
                             except Exception as yaml_error:
                                 st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
                                 yaml_content = stage_yaml_content

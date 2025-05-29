@@ -189,26 +189,82 @@ def display_semantic_model_columns(model_path: str):
                     else:
                         file_name = '/'.join(parts[2:])
                     
-                    # Use Snowpark SQL to read the file content
-                    query = f"""
-                    SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
-                    """
-                    result = session.sql(query).collect()
-                    if result and len(result) > 0:
-                        yaml_content = result[0][0]
-                    else:
-                        # Try an alternative query format for older Snowflake versions
-                        alt_query = f"""
-                        SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
+                    # Log the parsed path components for debugging
+                    path_info = {
+                        "database": database,
+                        "schema": schema,
+                        "stage_name": stage_name,
+                        "file_name": file_name,
+                        "original_path": file_path
+                    }
+                    st.session_state["debug_path_info"] = path_info
+                    
+                    # Try multiple different query formats to handle different Snowflake versions and configurations
+                    yaml_content = None
+                    error_messages = []
+                    
+                    # Method 1: Direct SELECT from stage with $ notation
+                    try:
+                        query = f"""
+                        SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
                         """
+                        result = session.sql(query).collect()
+                        if result and len(result) > 0 and result[0][0]:
+                            yaml_content = result[0][0]
+                            st.session_state["debug_load_method"] = "Method 1: Direct SELECT with $ notation"
+                        else:
+                            error_messages.append("Method 1: Query returned empty result")
+                    except Exception as e:
+                        error_messages.append(f"Method 1 Error: {str(e)}")
+                    
+                    # Method 2: Using GET_STAGED_FILE_CONTENT function
+                    if not yaml_content:
                         try:
+                            alt_query = f"""
+                            SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
+                            """
                             result = session.sql(alt_query).collect()
-                            if result and len(result) > 0:
+                            if result and len(result) > 0 and result[0][0]:
                                 yaml_content = result[0][0]
+                                st.session_state["debug_load_method"] = "Method 2: GET_STAGED_FILE_CONTENT"
                             else:
-                                raise ValueError(f"Could not read file from stage: {file_path}")
+                                error_messages.append("Method 2: Query returned empty result")
                         except Exception as e:
-                            raise ValueError(f"Failed to read file with alternative method: {str(e)}")
+                            error_messages.append(f"Method 2 Error: {str(e)}")
+                    
+                    # Method 3: Try without database/schema qualifiers
+                    if not yaml_content:
+                        try:
+                            alt_query = f"""
+                            SELECT $1 FROM @{stage_name}/{file_name}
+                            """
+                            result = session.sql(alt_query).collect()
+                            if result and len(result) > 0 and result[0][0]:
+                                yaml_content = result[0][0]
+                                st.session_state["debug_load_method"] = "Method 3: SELECT without DB/Schema qualifiers"
+                            else:
+                                error_messages.append("Method 3: Query returned empty result")
+                        except Exception as e:
+                            error_messages.append(f"Method 3 Error: {str(e)}")
+                    
+                    # Method 4: List stage files and check if the file exists
+                    if not yaml_content:
+                        try:
+                            list_query = f"""
+                            LIST @{database}.{schema}.{stage_name}/
+                            """
+                            list_result = session.sql(list_query).collect()
+                            stage_files = [row[0] for row in list_result]
+                            st.session_state["debug_stage_files"] = stage_files[:20]  # Store first 20 for debugging
+                            error_messages.append(f"Method 4: Found {len(stage_files)} files in stage")
+                        except Exception as e:
+                            error_messages.append(f"Method 4 Error: {str(e)}")
+                    
+                    # Store error messages for debugging
+                    st.session_state["debug_load_errors"] = error_messages
+                    
+                    if not yaml_content:
+                        raise ValueError(f"Could not read file from stage: {file_path}. Error details: {'; '.join(error_messages)}")
                 else:
                     raise ValueError(f"Invalid database/schema format: {parts[0]}")
             else:
@@ -458,11 +514,40 @@ def display_semantic_model_columns(model_path: str):
         with st.expander("Show debug information"):
             st.code(error_details)
             
+            # Show path parsing information if available
+            if "debug_path_info" in st.session_state:
+                st.markdown("### Stage Path Information")
+                path_info = st.session_state["debug_path_info"]
+                for key, value in path_info.items():
+                    st.text(f"{key}: {value}")
+            
+            # Show loading method if available
+            if "debug_load_method" in st.session_state:
+                st.markdown("### File Loading Method")
+                st.success(f"Successfully loaded using: {st.session_state['debug_load_method']}")
+            
+            # Show stage files if available
+            if "debug_stage_files" in st.session_state:
+                st.markdown("### Files in Stage")
+                files = st.session_state["debug_stage_files"]
+                if files:
+                    for i, file in enumerate(files):
+                        st.text(f"{i+1}. {file}")
+                else:
+                    st.text("No files found in stage")
+            
+            # Show loading errors if available
+            if "debug_load_errors" in st.session_state:
+                st.markdown("### File Loading Errors")
+                errors = st.session_state["debug_load_errors"]
+                for i, error in enumerate(errors):
+                    st.text(f"{i+1}. {error}")
+            
             # If we have the parser object with debug messages, display them
             if 'parser' in locals() and hasattr(parser, 'get_debug_messages'):
                 debug_messages = parser.get_debug_messages()
                 if debug_messages:
-                    st.markdown("### Debug Messages")
+                    st.markdown("### Parser Debug Messages")
                     for i, msg in enumerate(debug_messages):
                         st.text(f"{i+1}. {msg}")
             
@@ -470,9 +555,20 @@ def display_semantic_model_columns(model_path: str):
             if 'yaml_content' in locals():
                 st.markdown("### YAML Content Preview")
                 st.text(f"Type: {type(yaml_content).__name__}")
-                st.text(f"Length: {len(yaml_content) if isinstance(yaml_content, (str, bytes)) else 'unknown'}")
+                content_length = len(yaml_content) if isinstance(yaml_content, (str, bytes)) else 'unknown'
+                st.text(f"Length: {content_length}")
+                
                 if isinstance(yaml_content, str):
-                    st.code(yaml_content[:1000] + ('...' if len(yaml_content) > 1000 else ''), language='yaml')
+                    if content_length == 0:
+                        st.error("Empty string - No content to display")
+                    else:
+                        # Add info about the first few characters in hex for debugging
+                        first_chars = yaml_content[:20]
+                        hex_chars = " ".join([f"{ord(c):02x}" for c in first_chars])
+                        st.text(f"First 20 chars hex: {hex_chars}")
+                        
+                        # Display the content preview
+                        st.code(yaml_content[:1000] + ('...' if len(yaml_content) > 1000 else ''), language='yaml')
                 else:
                     st.text(f"Content cannot be displayed: {type(yaml_content).__name__}")
             

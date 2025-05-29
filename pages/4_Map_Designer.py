@@ -189,7 +189,7 @@ def get_map_from_transfer():
                 # Initialize the first metric
                 if value_col and value_col in st.session_state.current_map_data.columns:
                     st.session_state.selected_metrics = [value_col]
-                    st.session_state.height_metric = value_col
+                    st.session_state.height_metric = None # Default to no height metric
                     # Set default color scheme
                     st.session_state.color_schemes = {value_col: "White-Blue"}
             

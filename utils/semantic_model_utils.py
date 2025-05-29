@@ -68,14 +68,57 @@ class SemanticModelParser:
         Raises:
             ValueError: If required fields are missing or invalid
         """
+        # Add debug information about the content type and length
+        content_type = type(self.yaml_content).__name__
+        content_length = len(self.yaml_content) if isinstance(self.yaml_content, (str, bytes)) else 0
+        print(f"DEBUG: YAML content type={content_type}, length={content_length}")
+        
+        if content_length > 0 and isinstance(self.yaml_content, str):
+            print(f"DEBUG: YAML content preview: {self.yaml_content[:200]}...")
+        
         try:
             data = yaml.safe_load(self.yaml_content)
+            # Debug the loaded data
+            data_type = type(data).__name__
+            print(f"DEBUG: Loaded data type={data_type}")
+            
+            if data is None:
+                print("DEBUG: YAML parsed as None - file may be empty or have only comments")
+            elif isinstance(data, str):
+                print(f"DEBUG: YAML parsed as string: {data[:100]}...")
+            elif isinstance(data, list):
+                print(f"DEBUG: YAML parsed as list with {len(data)} items")
+                if len(data) > 0:
+                    print(f"DEBUG: First item type: {type(data[0]).__name__}")
         except yaml.YAMLError as e:
             error_msg = f"Invalid YAML format: {str(e)}"
             self.errors.append(error_msg)
+            print(f"DEBUG: YAML parsing error: {error_msg}")
             raise ValueError(error_msg)
 
-        if not isinstance(data, dict):
+        if data is None or not isinstance(data, dict):
+            # Try to recover - if it's a string, try re-parsing after some cleanup
+            if isinstance(self.yaml_content, str):
+                print("DEBUG: Attempting recovery - cleaning up content and re-parsing")
+                clean_content = self.yaml_content.strip()
+                
+                # Try to handle UTF-8 BOM if present
+                if clean_content.startswith('\ufeff'):
+                    clean_content = clean_content[1:]
+                    print("DEBUG: Removed UTF-8 BOM marker")
+                
+                try:
+                    data = yaml.safe_load(clean_content)
+                    print(f"DEBUG: After cleanup, loaded data type={type(data).__name__}")
+                    
+                    if not isinstance(data, dict):
+                        error_msg = f"Invalid semantic model: root must be a dictionary, got {type(data).__name__}"
+                        self.errors.append(error_msg)
+                        print(f"DEBUG: Recovery failed: {error_msg}")
+                        raise ValueError(error_msg)
+                except Exception as e:
+                    print(f"DEBUG: Recovery attempt failed: {str(e)}")
+            
             error_msg = "Invalid semantic model: root must be a dictionary"
             self.errors.append(error_msg)
             raise ValueError(error_msg)
@@ -84,10 +127,13 @@ class SemanticModelParser:
         if "tables" not in data:
             # Try to find tables in any of the nested dictionaries
             found_tables = False
+            print("DEBUG: 'tables' key not found in root, searching in nested dictionaries")
             for key, value in data.items():
+                print(f"DEBUG: Checking key '{key}', type={type(value).__name__}")
                 if isinstance(value, dict) and "tables" in value:
                     data = value
                     found_tables = True
+                    print(f"DEBUG: Found 'tables' key in '{key}' dictionary")
                     break
             
             if not found_tables:

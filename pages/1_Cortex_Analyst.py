@@ -48,10 +48,8 @@ st.set_page_config(
 # List of available semantic model paths in the format: <DATABASE>.<SCHEMA>.<STAGE>/<FILE-NAME>
 # Each path points to a YAML file defining a semantic model
 AVAILABLE_SEMANTIC_MODELS_PATHS = [
-    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
     "SYNTHEA.SYNTHEA.SYNTHEA/synthea_joins_03.yaml", 
-#    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml",
-#    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml", 
+    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
 ]
@@ -161,479 +159,65 @@ def display_semantic_model_columns(model_path: str):
         st.session_state.selected_columns = set()
         st.session_state.column_operations = {}
     
-    # Add manual file upload option
-    with st.sidebar.expander("⚠️ Upload YAML manually", expanded=False):
-        st.write("If automatic loading fails, you can upload the YAML file manually:")
-        uploaded_file = st.file_uploader("Upload semantic model YAML", type=['yaml', 'yml'])
-        if uploaded_file is not None:
-            # Read the file content
-            uploaded_content = uploaded_file.read().decode('utf-8')
-            st.success(f"Uploaded file: {uploaded_file.name} ({len(uploaded_content)} bytes)")
-            
-            # Store it in session state for later use
-            st.session_state["manual_yaml_content"] = uploaded_content
-            
-            # Show a button to use this content
-            if st.button("Use uploaded file"):
-                try:
-                    # Parse directly using the uploaded content
-                    parser = SemanticModelParser(uploaded_content)
-                    tables, debug_messages = parser.parse()
-                    
-                    if tables:
-                        st.success(f"Successfully parsed uploaded file. Found {len(tables)} tables.")
-                        # Store the tables in session state
-                        st.session_state["model_tables"] = tables
-                        st.session_state["model_debug_messages"] = debug_messages
-                        st.rerun()  # Rerun to refresh the UI with the parsed model
-                    else:
-                        st.error("No tables found in the uploaded file.")
-                except Exception as e:
-                    st.error(f"Error parsing uploaded file: {str(e)}")
-    
     try:
-        # First check if we have tables from a manually uploaded file
-        if "model_tables" in st.session_state:
-            tables = st.session_state["model_tables"]
-            debug_messages = st.session_state.get("model_debug_messages", [])
-            st.sidebar.success("Using manually uploaded semantic model")
-            
-            # Continue with normal UI display...
-            if "selected_columns" not in st.session_state:
-                st.session_state.selected_columns = set()
-            
-            # Display model information if available
-            if tables:
-                st.markdown("### Semantic Model Columns")
-                st.write(f"**Tables:** {len(tables)}")
-                # Rest of the display code will execute as normal
-                return
-        
-        # Extract file path and show debugging information
+        # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Display direct debugging for the file path
-        st.sidebar.write(f"**Debug - Loading Model Path:** `{model_path}`")
-        st.sidebar.write(f"**Debug - Parsed File Path:** `{file_path}`")
-        
-        # Extract the filename without path
-        filename = file_path.split('/')[-1]
-        
-        # First, check the local file as it seems to be working
-        local_yaml_content = None
+        # First try to read it using the raw file path
         try:
-            # Check various local path combinations
-            local_paths = [
-                f"Dev/{filename}",  # e.g., Dev/syntheav4.yaml
-                f"{filename}",      # e.g., syntheav4.yaml
-                f"Dev/yaml/{filename}",  # e.g., Dev/yaml/syntheav4.yaml
-                f"Dev/synthea/{filename}",  # e.g., Dev/synthea/syntheav4.yaml
-            ]
-            
-            # Also check with any 'synthea/' subfolder that might be in the path
-            if 'synthea/' in file_path:
-                synthea_part = '/'.join(file_path.split('/')[-2:])  # e.g., synthea/syntheav4.yaml
-                local_paths.append(f"Dev/{synthea_part}")
-                local_paths.append(synthea_part)
-            
-            for local_file_path in local_paths:
-                st.sidebar.write(f"**Checking Local File:** `{local_file_path}`")
-                try:
-                    with open(local_file_path, "r") as f:
-                        local_yaml_content = f.read()
-                        if len(local_yaml_content) == 0:
-                            st.sidebar.warning(f"**Local file is empty (0 bytes)**: `{local_file_path}`")
-                            continue  # Skip to next file path
-                            
-                        st.sidebar.success(f"**Local file loaded:** {len(local_yaml_content)} bytes")
-                        
-                        # Add debug info about the first few bytes
-                        if len(local_yaml_content) > 0:
-                            first_bytes = [ord(c) for c in local_yaml_content[:20]]
-                            st.sidebar.write(f"**First 20 bytes (hex):** {[f'{b:02x}' for b in first_bytes]}")
-                            st.sidebar.write(f"**Content preview:** `{local_yaml_content[:50]}...`")
-                        
-                        # Validate YAML content by trying to parse it
-                        try:
-                            import yaml
-                            yaml_data = yaml.safe_load(local_yaml_content)
-                            
-                            # First show some basic info about the YAML structure
-                            if yaml_data and isinstance(yaml_data, dict):
-                                st.sidebar.write(f"**YAML structure:** Keys at root level: {', '.join(yaml_data.keys())}")
-                                
-                                # Count tables if they exist
-                                if "tables" in yaml_data and isinstance(yaml_data["tables"], list):
-                                    table_count = len(yaml_data["tables"])
-                                    st.sidebar.write(f"**Tables found:** {table_count}")
-                                    
-                                    # Show first few table names
-                                    if table_count > 0:
-                                        table_names = [t.get('name', 'unnamed') for t in yaml_data["tables"] if isinstance(t, dict)][:5]
-                                        st.sidebar.write(f"**First tables:** {', '.join(table_names[:5])}")
-                                
-                            # Check if it has tables section
-                            if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
-                                st.sidebar.success("Local file contains valid YAML with 'tables' section")
-                                
-                                # Use this validated content directly
-                                yaml_content = local_yaml_content
-                                st.session_state["debug_load_method"] = "Local file"
-                                
-                                # Parse the semantic model and return
-                                parser = SemanticModelParser(yaml_content)
-                                tables, debug_messages = parser.parse()
-                                
-                                # Skip the rest of the loading process
-                                if "selected_columns" not in st.session_state:
-                                    st.session_state.selected_columns = set()
-                                
-                                # Display model information if available
-                                if tables:
-                                    st.markdown("### Semantic Model Columns")
-                                    st.write(f"**Tables:** {len(tables)}")
-                                    
-                                    # Continue with normal UI display...
-                                    # The rest of the display code will execute as normal
-                                    break  # Break out of the loop
-                            else:
-                                st.sidebar.warning("Local file doesn't contain valid YAML with 'tables' section")
-                        except Exception as yaml_error:
-                            st.sidebar.warning(f"Error parsing local YAML: {str(yaml_error)}")
-                            # Keep the content anyway - our parser might handle it
-                except FileNotFoundError:
-                    st.sidebar.write(f"Local file not found: {local_file_path}")
-                except Exception as e:
-                    st.sidebar.write(f"Error checking local file: {str(e)}")
-            
-            if 'yaml_content' in locals() and yaml_content:
-                return  # Exit early if we have loaded and parsed content
-                
-        except Exception as e:
-            st.sidebar.write(f"Error in local file loading: {str(e)}")
-            
-        # Attempt to load from Snowflake stage
-        st.sidebar.write("**Attempting to load from Snowflake stage**")
-        
-        # Parse path components
-        parts = file_path.split('/')
-        if len(parts) >= 1:
-            db_schema_stage = parts[0]
-            db_schema_parts = db_schema_stage.split('.')
-            
-            if len(db_schema_parts) >= 3:  # We have database.schema.stage
-                database = db_schema_parts[0]
-                schema = db_schema_parts[1]
-                stage_name = db_schema_parts[2]
-                
-                # Try multiple file names
-                possible_file_names = []
-                
-                # The base file name
-                possible_file_names.append(filename)
-                
-                # With synthea/ prefix if relevant
-                if 'synthea' in filename.lower():
-                    possible_file_names.append(f"synthea/{filename}")
-                
-                # Try listing files to find exact matches
-                try:
-                    list_query = f'LIST @"{database}"."{schema}"."{stage_name}"/'
-                    st.sidebar.code(list_query, language="sql")
-                    
-                    list_result = session.sql(list_query).collect()
-                    stage_files = [str(row[0]) for row in list_result]
-                    
-                    if stage_files:
-                        st.sidebar.write(f"**Found {len(stage_files)} files in stage**")
-                        
-                        # Look for direct matches first
-                        exact_matches = []
-                        for possible_name in possible_file_names:
-                            if possible_name in stage_files:
-                                exact_matches.append(possible_name)
-                                st.sidebar.success(f"Found exact match: {possible_name}")
-                        
-                        # If we have exact matches, use the first one
-                        if exact_matches:
-                            file_name = exact_matches[0]
-                            st.sidebar.write(f"Using file: {file_name}")
-                            
-                            # For SQL query purposes, check if we need to remove a synthea/ prefix
-                            sql_file_name = file_name
-                            if sql_file_name.startswith('synthea/'):
-                                # Just use the filename without the synthea/ prefix for SQL queries
-                                sql_file_name = sql_file_name.split('/')[-1]
-                                st.sidebar.info(f"Using SQL file name without prefix: {sql_file_name}")
-                        else:
-                            # Look for partial matches
-                            matches = []
-                            for f in stage_files:
-                                if filename.lower() in f.lower():
-                                    matches.append(f)
-                            
-                            if matches:
-                                file_name = matches[0]
-                                st.sidebar.write(f"Using closest match: {file_name}")
-                            else:
-                                # No matches found
-                                st.sidebar.error(f"No file matching {filename} found in stage")
-                                
-                                # Show a few available files as suggestions
-                                yaml_files = [f for f in stage_files if f.lower().endswith('.yaml')]
-                                if yaml_files:
-                                    st.sidebar.write("Available YAML files:")
-                                    for i, yaml_file in enumerate(yaml_files[:5]):
-                                        st.sidebar.write(f"{i+1}. {yaml_file}")
-                                    
-                                    # Add buttons to try these files
-                                    st.sidebar.write("Try one of these files:")
-                                    for i, yaml_file in enumerate(yaml_files[:3]):
-                                        if st.sidebar.button(f"Use {yaml_file}", key=f"use_file_{i}"):
-                                            file_name = yaml_file
-                                            st.sidebar.success(f"Selected: {file_name}")
-                                            st.rerun()
-                                
-                                # If we have local content, use it
-                                if local_yaml_content:
-                                    st.sidebar.success("Using local file as fallback")
-                                    yaml_content = local_yaml_content
-                                    st.session_state["debug_load_method"] = "Local file fallback"
-                                    
-                                    # Parse and continue
-                                    parser = SemanticModelParser(yaml_content)
-                                    tables, debug_messages = parser.parse()
-                                    
-                                    if "selected_columns" not in st.session_state:
-                                        st.session_state.selected_columns = set()
-                                    
-                                    return
-                                else:
-                                    raise ValueError(f"No matching file found in stage {database}.{schema}.{stage_name}")
+            # For development and testing - try to read directly from local file system
+            with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
+                yaml_content = f.read()
+        except FileNotFoundError:
+            # If local file not found, try using Snowpark to read from stage
+            # Handle different path formats more robustly
+            parts = file_path.split('/')
+            if len(parts) >= 2:
+                # Extract the database, schema, and stage parts
+                db_schema_parts = parts[0].split('.')
+                if len(db_schema_parts) >= 2:
+                    database = db_schema_parts[0]
+                    schema = db_schema_parts[1]
+                    # The stage might be the third part of db_schema_parts or the second part of the path
+                    if len(db_schema_parts) >= 3:
+                        stage_name = db_schema_parts[2]
                     else:
-                        st.sidebar.warning("No files found in stage")
-                        if local_yaml_content:
-                            st.sidebar.success("Using local file since stage is empty")
-                            yaml_content = local_yaml_content
-                            st.session_state["debug_load_method"] = "Local file (empty stage)"
-                            
-                            # Parse and continue
-                            parser = SemanticModelParser(yaml_content)
-                            tables, debug_messages = parser.parse()
-                            
-                            if "selected_columns" not in st.session_state:
-                                st.session_state.selected_columns = set()
-                            
-                            return
-                        else:
-                            raise ValueError(f"Stage {database}.{schema}.{stage_name} is empty and no local file found")
-                
-                except Exception as e:
-                    st.sidebar.error(f"Error listing stage: {str(e)}")
-                
-                # Special handling for known paths - use single quotes and exact path format
-                special_paths = {
-                    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml": 
-                        "@SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml",
-                    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml": 
-                        "@SYNTHEA.SYNTHEA.SYNTHEA/synthea/synthea_joins_03.yaml",
-                    "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml": 
-                        "@TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
-                }
-                
-                if file_path in special_paths:
-                    try:
-                        st.sidebar.write(f"**Trying special path for {file_path}**")
-                        special_query = f"SELECT $1 FROM '{special_paths[file_path]}';"
-                        st.sidebar.code(special_query, language="sql")
-                        
-                        result = session.sql(special_query).collect()
-                        if result and len(result) > 0 and result[0][0]:
-                            stage_yaml_content = result[0][0]
-                            st.sidebar.success(f"Special path loaded: {len(stage_yaml_content)} bytes")
-                            
-                            # Validate if this content is a complete YAML with tables section
-                            try:
-                                import yaml
-                                yaml_data = yaml.safe_load(stage_yaml_content)
-                                if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
-                                    st.sidebar.success("Stage file contains valid YAML with 'tables' section")
-                                    yaml_content = stage_yaml_content
-                                    st.session_state["debug_load_method"] = "Special path query"
-                                else:
-                                    st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
-                                    
-                                    # If we have a valid local file, prefer it
-                                    if local_yaml_content and len(local_yaml_content) > 15:
-                                        try:
-                                            local_yaml_data = yaml.safe_load(local_yaml_content)
-                                            if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
-                                                st.sidebar.success("Using local file instead - it has valid 'tables' section")
-                                                yaml_content = local_yaml_content
-                                                st.session_state["debug_load_method"] = "Local file (more complete than stage)"
-                                            else:
-                                                # Neither file is complete, but use the stage one since it was loaded
-                                                yaml_content = stage_yaml_content
-                                                st.session_state["debug_load_method"] = "Special path query (incomplete)"
-                                        except Exception:
-                                            # Local file has YAML errors, use stage content
-                                            yaml_content = stage_yaml_content
-                                            st.session_state["debug_load_method"] = "Special path query (incomplete)"
-                            except Exception as yaml_error:
-                                st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
-                                yaml_content = stage_yaml_content
-                                st.session_state["debug_load_method"] = "Special path query (validation failed)"
-                    except Exception as e:
-                        st.sidebar.warning(f"Special path failed: {str(e)}")
-                
-                # Try the basic SQL method if we don't have content yet
-                if 'yaml_content' not in locals() or not yaml_content:
-                    yaml_content = None
-                    loading_errors = []
+                        stage_name = parts[1]
                     
-                    # Basic SELECT with quotes
-                    try:
-                        # Try the most reliable format
-                        query = f"SELECT $1 FROM '@\"{database}\".\"{schema}\".\"{stage_name}\"/{sql_file_name if 'sql_file_name' in locals() else file_name}';"
-                        st.sidebar.write("**Loading file with basic SELECT:**")
-                        st.sidebar.code(query, language="sql")
-                        
-                        result = session.sql(query).collect()
-                        if result and len(result) > 0 and result[0][0]:
-                            stage_yaml_content = result[0][0]
-                            st.sidebar.success(f"Successfully loaded: {len(stage_yaml_content)} bytes")
-                            
-                            # Validate if this content is complete
-                            try:
-                                import yaml
-                                yaml_data = yaml.safe_load(stage_yaml_content)
-                                if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
-                                    st.sidebar.success("Stage file contains valid YAML with 'tables' section")
-                                    yaml_content = stage_yaml_content
-                                    st.session_state["debug_load_method"] = "Basic SELECT query"
-                                else:
-                                    st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
-                                    
-                                    # If we have a valid local file, prefer it
-                                    if local_yaml_content and len(local_yaml_content) > 15:
-                                        try:
-                                            local_yaml_data = yaml.safe_load(local_yaml_content)
-                                            if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
-                                                st.sidebar.success("Using local file instead - it has valid 'tables' section")
-                                                yaml_content = local_yaml_content
-                                                st.session_state["debug_load_method"] = "Local file (more complete than stage)"
-                                            else:
-                                                # Neither file is complete, but use the stage one
-                                                yaml_content = stage_yaml_content
-                                                st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
-                                        except Exception:
-                                            # Local file has YAML errors, use stage content
-                                            yaml_content = stage_yaml_content
-                                            st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
-                                    else:
-                                        # No valid local file, use stage content even if incomplete
-                                        yaml_content = stage_yaml_content
-                                        st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
-                            except Exception as yaml_error:
-                                st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
-                                yaml_content = stage_yaml_content
-                                st.session_state["debug_load_method"] = "Basic SELECT query (validation failed)"
-                        else:
-                            err_msg = "Query returned empty result"
-                            loading_errors.append(err_msg)
-                            st.sidebar.warning(err_msg)
-                            
-                            # Try without the quotes
-                            try:
-                                query = f"SELECT $1 FROM @{database}.{schema}.{stage_name}/{sql_file_name if 'sql_file_name' in locals() else file_name};"
-                                st.sidebar.code(query, language="sql")
-                                
-                                result = session.sql(query).collect()
-                                if result and len(result) > 0 and result[0][0]:
-                                    stage_yaml_content = result[0][0]
-                                    st.sidebar.success(f"Unquoted SELECT loaded: {len(stage_yaml_content)} bytes")
-                                    
-                                    # Validate if this content is complete
-                                    try:
-                                        import yaml
-                                        yaml_data = yaml.safe_load(stage_yaml_content)
-                                        if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
-                                            st.sidebar.success("Stage file contains valid YAML with 'tables' section")
-                                            yaml_content = stage_yaml_content
-                                            st.session_state["debug_load_method"] = "Unquoted SELECT query"
-                                        else:
-                                            st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
-                                            
-                                            # If we have a valid local file, prefer it
-                                            if local_yaml_content and len(local_yaml_content) > 15:
-                                                try:
-                                                    local_yaml_data = yaml.safe_load(local_yaml_content)
-                                                    if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
-                                                        st.sidebar.success("Using local file instead - it has valid 'tables' section")
-                                                        yaml_content = local_yaml_content
-                                                        st.session_state["debug_load_method"] = "Local file (more complete than stage)"
-                                                    else:
-                                                        # Neither file is complete, but use the stage one
-                                                        yaml_content = stage_yaml_content
-                                                        st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
-                                                except Exception:
-                                                    # Local file has YAML errors, use stage content
-                                                    yaml_content = stage_yaml_content
-                                                    st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
-                                            else:
-                                                # No valid local file, use stage content even if incomplete
-                                                yaml_content = stage_yaml_content
-                                                st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
-                                    except Exception as yaml_error:
-                                        st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
-                                        yaml_content = stage_yaml_content
-                                        st.session_state["debug_load_method"] = "Unquoted SELECT query (validation failed)"
-                            except Exception as e2:
-                                loading_errors.append(f"Unquoted SELECT failed: {str(e2)}")
-                                st.sidebar.warning(f"Unquoted SELECT error: {str(e2)}")
-                            
-                            # Fall back to local file if available
-                            if not yaml_content and local_yaml_content:
-                                st.sidebar.success("Using local file as last resort")
-                                yaml_content = local_yaml_content
-                                st.session_state["debug_load_method"] = "Local file (last resort)"
-                    except Exception as e:
-                        err_msg = str(e)
-                        loading_errors.append(f"Basic SELECT failed: {err_msg}")
-                        st.sidebar.warning(f"Basic SELECT error: {err_msg}")
-                        
-                        # Fall back to local file if available
-                        if local_yaml_content:
-                            st.sidebar.success("Using local file after SELECT error")
-                            yaml_content = local_yaml_content
-                            st.session_state["debug_load_method"] = "Local file after error"
+                    # The file name is everything after the stage in the path
+                    if len(db_schema_parts) >= 3:
+                        file_name = '/'.join(parts[1:])
+                    else:
+                        file_name = '/'.join(parts[2:])
                     
-                    # If we still don't have content, give up
-                    if not yaml_content:
-                        error_details = "\n".join(loading_errors)
-                        raise ValueError(f"Failed to load file using any method.\n{error_details}")
-                
-                # Store debug information for the error expander
-                st.session_state["debug_path_info"] = {
-                    "database": database,
-                    "schema": schema,
-                    "stage": stage_name,
-                    "file_name": file_name if 'file_name' in locals() else filename,
-                    "full_path": f'@"{database}"."{schema}"."{stage_name}"/{file_name if "file_name" in locals() else filename}'
-                }
-                st.session_state["debug_stage_files"] = stage_files if 'stage_files' in locals() else []
-                st.session_state["debug_load_errors"] = loading_errors if 'loading_errors' in locals() else []
-                
-                # If we're here, we have content
-                st.sidebar.success(f"Successfully loaded semantic model ({len(yaml_content)} bytes)")
+                    # Use Snowpark SQL to read the file content
+                    query = f"""
+                    SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
+                    """
+                    result = session.sql(query).collect()
+                    if result and len(result) > 0:
+                        yaml_content = result[0][0]
+                    else:
+                        # Try an alternative query format for older Snowflake versions
+                        alt_query = f"""
+                        SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
+                        """
+                        try:
+                            result = session.sql(alt_query).collect()
+                            if result and len(result) > 0:
+                                yaml_content = result[0][0]
+                            else:
+                                raise ValueError(f"Could not read file from stage: {file_path}")
+                        except Exception as e:
+                            raise ValueError(f"Failed to read file with alternative method: {str(e)}")
+                else:
+                    raise ValueError(f"Invalid database/schema format: {parts[0]}")
             else:
-                raise ValueError(f"Invalid path format: Expected database.schema.stage but got {db_schema_stage}")
-        else:
-            raise ValueError(f"Invalid path format: {file_path}")
+                raise ValueError(f"Invalid stage path format: {file_path}")
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
-        tables, debug_messages = parser.parse()
+        tables = parser.parse()
         
         # Initialize session state for selected columns if not exists
         if "selected_columns" not in st.session_state:
@@ -867,101 +451,9 @@ def display_semantic_model_columns(model_path: str):
                     st.rerun()
 
     except Exception as e:
-        # First check if we have manually uploaded model data
-        if "model_tables" in st.session_state:
-            tables = st.session_state["model_tables"]
-            debug_messages = st.session_state.get("model_debug_messages", [])
-            st.sidebar.success("Using manually uploaded semantic model as fallback")
-            
-            # Continue with the existing code for displaying model data
-            if "selected_columns" not in st.session_state:
-                st.session_state.selected_columns = set()
-            
-            # Skip to the model display section
-            if tables:
-                st.markdown("### Semantic Model Columns")
-                st.write(f"**Tables:** {len(tables)}")
-                
-                # Rest of the display code...
-                # Add a note about the error
-                st.sidebar.warning(f"Note: Using manually uploaded model because automatic loading failed: {str(e)}")
-                
-                return  # Return early to avoid showing the error
-        
-        # If we don't have manually uploaded content or it failed, show the error
         st.error(f"Error loading semantic model: {str(e)}")
         import traceback
-        error_details = traceback.format_exc()
-        
-        # Display an expander with detailed debug information
-        with st.expander("Show debug information"):
-            st.code(error_details)
-            
-            # Show path parsing information if available
-            if "debug_path_info" in st.session_state:
-                st.markdown("### Stage Path Information")
-                path_info = st.session_state["debug_path_info"]
-                for key, value in path_info.items():
-                    st.text(f"{key}: {value}")
-            
-            # Show loading method if available
-            if "debug_load_method" in st.session_state:
-                st.markdown("### File Loading Method")
-                st.success(f"Successfully loaded using: {st.session_state['debug_load_method']}")
-            
-            # Show stage files if available
-            if "debug_stage_files" in st.session_state:
-                st.markdown("### Files in Stage")
-                files = st.session_state["debug_stage_files"]
-                if files:
-                    for i, file in enumerate(files):
-                        st.text(f"{i+1}. {file}")
-                else:
-                    st.text("No files found in stage")
-            
-            # Show loading errors if available
-            if "debug_load_errors" in st.session_state:
-                st.markdown("### File Loading Errors")
-                errors = st.session_state["debug_load_errors"]
-                for i, error in enumerate(errors):
-                    st.text(f"{i+1}. {error}")
-            
-            # If we have the parser object with debug messages, display them
-            if 'parser' in locals() and hasattr(parser, 'get_debug_messages'):
-                debug_messages = parser.get_debug_messages()
-                if debug_messages:
-                    st.markdown("### Parser Debug Messages")
-                    for i, msg in enumerate(debug_messages):
-                        st.text(f"{i+1}. {msg}")
-            
-            # If we have access to yaml_content, show a preview
-            if 'yaml_content' in locals():
-                st.markdown("### YAML Content Preview")
-                st.text(f"Type: {type(yaml_content).__name__}")
-                content_length = len(yaml_content) if isinstance(yaml_content, (str, bytes)) else 'unknown'
-                st.text(f"Length: {content_length}")
-                
-                if isinstance(yaml_content, str):
-                    if content_length == 0:
-                        st.error("Empty string - No content to display")
-                    else:
-                        # Add info about the first few characters in hex for debugging
-                        first_chars = yaml_content[:20]
-                        hex_chars = " ".join([f"{ord(c):02x}" for c in first_chars])
-                        st.text(f"First 20 chars hex: {hex_chars}")
-                        
-                        # Display the content preview
-                        st.code(yaml_content[:1000] + ('...' if len(yaml_content) > 1000 else ''), language='yaml')
-                else:
-                    st.text(f"Content cannot be displayed: {type(yaml_content).__name__}")
-            
-            # Show query used to fetch the YAML
-            if 'query' in locals():
-                st.markdown("### Query Used")
-                st.code(query, language='sql')
-        
-        # Regular error display for sidebar
-        st.sidebar.error(f"Error details: {error_details}")
+        st.sidebar.error(f"Error details: {traceback.format_exc()}")
 
 
 def generate_prompt_from_selections() -> str:

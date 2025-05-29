@@ -48,6 +48,7 @@ st.set_page_config(
 # List of available semantic model paths in the format: <DATABASE>.<SCHEMA>.<STAGE>/<FILE-NAME>
 # Each path points to a YAML file defining a semantic model
 AVAILABLE_SEMANTIC_MODELS_PATHS = [
+    "SYNTHEA.SYNTHEA.SYNTHEA/synthea_joins_03.yaml", 
     "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
@@ -165,7 +166,7 @@ def display_semantic_model_columns(model_path: str):
         # First try to read it using the raw file path
         try:
             # For development and testing - try to read directly from local file system
-            with open(f"Dev/{file_path.split('/')[-1]}", "r") as f:
+            with open(f"Dev/{file_path.split('/')[-1]}", "r", encoding="utf-8") as f:
                 yaml_content = f.read()
         except FileNotFoundError:
             # If local file not found, try using Snowpark to read from stage
@@ -214,6 +215,10 @@ def display_semantic_model_columns(model_path: str):
             else:
                 raise ValueError(f"Invalid stage path format: {file_path}")
         
+        # DEBUG: Print type and beginning of yaml_content
+        print(f"YAML content type before parsing: {type(yaml_content)}")
+        print(f"First 500 chars of YAML content before parsing: {yaml_content[:500]}")
+
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
         tables = parser.parse()

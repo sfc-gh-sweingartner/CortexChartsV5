@@ -835,4 +835,7 @@ relationships:
       - left_column: CELL_ID
         right_column: CELL_ID
     right_table: SUPPORT_TICKETS
-custom_instructions: 'Unless specifically asked to bring back multiple date fields, only bring back one date or date time field rather than multiple columns.    for facts, nvl all columns to zero.  Unless asked to bring back any  time or date field avoid bringing them back.  '
+custom_instructions: 
+  1. Avoid returning date columns unless asked to show the date or break out the info by date.  For example, if you are asked to bring back something for the entire time period, do not bring back the start and end date.  
+  2. If you are asked to return the location of something, bring back both the latitude and the longitude columns.
+  3. All week, month, and year columns should be in a date type rather than as text.  When aggregating a date, use date_truc() which returns a date rather than date_part() or year() which returns a number

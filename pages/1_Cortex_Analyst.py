@@ -158,234 +158,138 @@ def display_semantic_model_columns(model_path: str):
         st.session_state.selected_columns = set()
         st.session_state.column_operations = {}
     
-    # Display direct debugging for the file path
-    st.sidebar.write(f"**Debug - Loading Model Path:** `{model_path}`")
-    
     try:
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
+        
+        # Display direct debugging for the file path
+        st.sidebar.write(f"**Debug - Loading Model Path:** `{model_path}`")
         st.sidebar.write(f"**Debug - Parsed File Path:** `{file_path}`")
         
-        # First try to read it using the raw file path
+        # Check if we can read the local file first, just to debug issues
+        local_yaml_content = None
         try:
-            # For development and testing - try to read directly from local file system
             local_file_path = f"Dev/{file_path.split('/')[-1]}"
-            st.sidebar.write(f"**Debug - Trying Local File:** `{local_file_path}`")
+            st.sidebar.write(f"**Debug - Checking Local File:** `{local_file_path}`")
             
+            # Check if file exists and its size
             with open(local_file_path, "r") as f:
-                yaml_content = f.read()
-                st.sidebar.success(f"Successfully loaded from local file: {len(yaml_content)} bytes")
+                local_yaml_content = f.read()
+                st.sidebar.write(f"**Local file size:** {len(local_yaml_content)} bytes")
+                
+                # Check first few bytes for debugging
+                if len(local_yaml_content) > 0:
+                    first_bytes = [ord(c) for c in local_yaml_content[:10]]
+                    st.sidebar.write(f"**First 10 bytes (hex):** {[f'{b:02x}' for b in first_bytes]}")
         except FileNotFoundError:
-            st.sidebar.warning(f"Local file not found, trying from Snowflake stage")
+            st.sidebar.write("Local file not found")
+        except Exception as e:
+            st.sidebar.write(f"Error checking local file: {str(e)}")
             
-            # If local file not found, try using Snowpark to read from stage
-            # Handle different path formats more robustly
-            parts = file_path.split('/')
-            st.sidebar.write(f"**Debug - Path Parts:** {parts}")
+        # ALWAYS try to load from Snowflake stage
+        st.sidebar.write("**Attempting to load from Snowflake stage**")
+        
+        # Parse path components
+        parts = file_path.split('/')
+        if len(parts) >= 1:
+            db_schema_stage = parts[0]
+            db_schema_parts = db_schema_stage.split('.')
             
-            if len(parts) >= 1:
-                # Extract the database, schema, and stage parts
-                db_schema_stage = parts[0]
-                st.sidebar.write(f"**Debug - DB.Schema.Stage:** `{db_schema_stage}`")
+            if len(db_schema_parts) >= 3:  # We have database.schema.stage
+                database = db_schema_parts[0]
+                schema = db_schema_parts[1]
+                stage_name = db_schema_parts[2]
                 
-                db_schema_parts = db_schema_stage.split('.')
-                st.sidebar.write(f"**Debug - DB Schema Parts:** {db_schema_parts}")
-                
-                if len(db_schema_parts) >= 2:
-                    database = db_schema_parts[0]
-                    schema = db_schema_parts[1]
-                    
-                    # The stage might be the third part of db_schema_parts
-                    stage_name = db_schema_parts[2] if len(db_schema_parts) >= 3 else None
-                    
-                    # If we don't have a stage name yet, try to get it from the second part of the path
-                    if not stage_name and len(parts) >= 2:
-                        stage_name = parts[1]
-                    
-                    # The file name is everything after the stage in the path
-                    if len(db_schema_parts) >= 3 and len(parts) >= 2:
-                        file_name = '/'.join(parts[1:])
-                    elif len(parts) >= 2:
-                        file_name = '/'.join(parts[2:])
-                    else:
-                        file_name = file_path.split('/')[-1]  # Just use the filename part
-                    
-                    # Show the parsed components in the UI
-                    st.sidebar.write(f"**Debug - Parsed Stage Info:**")
-                    st.sidebar.write(f"- Database: `{database}`")
-                    st.sidebar.write(f"- Schema: `{schema}`")
-                    st.sidebar.write(f"- Stage: `{stage_name}`")
-                    st.sidebar.write(f"- File Name: `{file_name}`")
-                    
-                    # Log the parsed path components for debugging
-                    path_info = {
-                        "database": database,
-                        "schema": schema,
-                        "stage_name": stage_name,
-                        "file_name": file_name,
-                        "original_path": file_path
-                    }
-                    st.session_state["debug_path_info"] = path_info
-                    
-                    # Direct test - try to list the stage contents
-                    try:
-                        list_query = f"""
-                        LIST @{database}.{schema}.{stage_name}/
-                        """
-                        st.sidebar.code(list_query, language="sql")
-                        st.sidebar.write("**Executing LIST query...**")
-                        
-                        list_result = session.sql(list_query).collect()
-                        stage_files = [str(row[0]) for row in list_result]
-                        
-                        st.sidebar.write(f"**Found {len(stage_files)} files in stage**")
-                        if stage_files:
-                            st.sidebar.write("First 5 files:")
-                            for i, file in enumerate(stage_files[:5]):
-                                st.sidebar.write(f"{i+1}. `{file}`")
-                        
-                        st.session_state["debug_stage_files"] = stage_files[:20]
-                        
-                        # Check if our target file appears to be in the results
-                        target_filename = file_name.split('/')[-1]
-                        matching_files = [f for f in stage_files if target_filename.lower() in f.lower()]
-                        
-                        if matching_files:
-                            st.sidebar.success(f"Found {len(matching_files)} potential matches for {target_filename}")
-                            st.sidebar.write("Matches:")
-                            for i, file in enumerate(matching_files[:5]):
-                                st.sidebar.write(f"{i+1}. `{file}`")
-                            
-                            # Try to load using the exact match if found
-                            if len(matching_files) == 1:
-                                exact_file = matching_files[0]
-                                st.sidebar.write(f"**Trying to load exact match:** `{exact_file}`")
-                                
-                                # The LIST command returns paths like 'syntheav4.yaml', so adjust our file_name
-                                file_name = exact_file
-                        else:
-                            st.sidebar.error(f"No files matching '{target_filename}' found in stage")
-                    except Exception as e:
-                        st.sidebar.error(f"Error listing stage: {str(e)}")
-                    
-                    # Try multiple different query formats to handle different Snowflake versions and configurations
-                    yaml_content = None
-                    error_messages = []
-                    
-                    # Method 1: Direct SELECT from stage with $ notation
-                    try:
-                        query = f"""
-                        SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
-                        """
-                        st.sidebar.write("**Method 1:** Direct SELECT with $ notation")
-                        st.sidebar.code(query, language="sql")
-                        
-                        result = session.sql(query).collect()
-                        if result and len(result) > 0:
-                            if result[0][0]:
-                                yaml_content = result[0][0]
-                                content_length = len(yaml_content) if isinstance(yaml_content, str) else "unknown"
-                                st.sidebar.success(f"Method 1 Success: {content_length} bytes")
-                                st.session_state["debug_load_method"] = "Method 1: Direct SELECT with $ notation"
-                            else:
-                                st.sidebar.warning("Method 1: Query returned NULL value")
-                                error_messages.append("Method 1: Query returned NULL value")
-                        else:
-                            st.sidebar.warning("Method 1: Query returned empty result")
-                            error_messages.append("Method 1: Query returned empty result")
-                    except Exception as e:
-                        st.sidebar.error(f"Method 1 Error: {str(e)}")
-                        error_messages.append(f"Method 1 Error: {str(e)}")
-                    
-                    # Method 2: Using GET_STAGED_FILE_CONTENT function
-                    if not yaml_content:
-                        try:
-                            alt_query = f"""
-                            SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
-                            """
-                            st.sidebar.write("**Method 2:** Using GET_STAGED_FILE_CONTENT")
-                            st.sidebar.code(alt_query, language="sql")
-                            
-                            result = session.sql(alt_query).collect()
-                            if result and len(result) > 0:
-                                if result[0][0]:
-                                    yaml_content = result[0][0]
-                                    content_length = len(yaml_content) if isinstance(yaml_content, str) else "unknown"
-                                    st.sidebar.success(f"Method 2 Success: {content_length} bytes")
-                                    st.session_state["debug_load_method"] = "Method 2: GET_STAGED_FILE_CONTENT"
-                                else:
-                                    st.sidebar.warning("Method 2: Query returned NULL value")
-                                    error_messages.append("Method 2: Query returned NULL value")
-                            else:
-                                st.sidebar.warning("Method 2: Query returned empty result")
-                                error_messages.append("Method 2: Query returned empty result")
-                        except Exception as e:
-                            st.sidebar.error(f"Method 2 Error: {str(e)}")
-                            error_messages.append(f"Method 2 Error: {str(e)}")
-                    
-                    # Method 3: Try without database/schema qualifiers
-                    if not yaml_content:
-                        try:
-                            alt_query = f"""
-                            SELECT $1 FROM @{stage_name}/{file_name}
-                            """
-                            st.sidebar.write("**Method 3:** SELECT without DB/Schema qualifiers")
-                            st.sidebar.code(alt_query, language="sql")
-                            
-                            result = session.sql(alt_query).collect()
-                            if result and len(result) > 0:
-                                if result[0][0]:
-                                    yaml_content = result[0][0]
-                                    content_length = len(yaml_content) if isinstance(yaml_content, str) else "unknown"
-                                    st.sidebar.success(f"Method 3 Success: {content_length} bytes")
-                                    st.session_state["debug_load_method"] = "Method 3: SELECT without DB/Schema qualifiers"
-                                else:
-                                    st.sidebar.warning("Method 3: Query returned NULL value")
-                                    error_messages.append("Method 3: Query returned NULL value")
-                            else:
-                                st.sidebar.warning("Method 3: Query returned empty result")
-                                error_messages.append("Method 3: Query returned empty result")
-                        except Exception as e:
-                            st.sidebar.error(f"Method 3 Error: {str(e)}")
-                            error_messages.append(f"Method 3 Error: {str(e)}")
-                    
-                    # Method 4: Try with the raw filename
-                    if not yaml_content and matching_files:
-                        try:
-                            raw_filename = matching_files[0]
-                            alt_query = f"""
-                            SELECT $1 FROM @{database}.{schema}.{stage_name}/{raw_filename}
-                            """
-                            st.sidebar.write(f"**Method 4:** Using exact filename from LIST: {raw_filename}")
-                            st.sidebar.code(alt_query, language="sql")
-                            
-                            result = session.sql(alt_query).collect()
-                            if result and len(result) > 0:
-                                if result[0][0]:
-                                    yaml_content = result[0][0]
-                                    content_length = len(yaml_content) if isinstance(yaml_content, str) else "unknown"
-                                    st.sidebar.success(f"Method 4 Success: {content_length} bytes")
-                                    st.session_state["debug_load_method"] = f"Method 4: Using exact filename: {raw_filename}"
-                                else:
-                                    st.sidebar.warning("Method 4: Query returned NULL value")
-                                    error_messages.append("Method 4: Query returned NULL value")
-                            else:
-                                st.sidebar.warning("Method 4: Query returned empty result")
-                                error_messages.append("Method 4: Query returned empty result")
-                        except Exception as e:
-                            st.sidebar.error(f"Method 4 Error: {str(e)}")
-                            error_messages.append(f"Method 4 Error: {str(e)}")
-                    
-                    # Store error messages for debugging
-                    st.session_state["debug_load_errors"] = error_messages
-                    
-                    if not yaml_content:
-                        st.sidebar.error("All methods failed to load file content")
-                        raise ValueError(f"Could not read file from stage: {file_path}. Error details: {'; '.join(error_messages)}")
+                # File name is everything after the first part
+                if len(parts) > 1:
+                    file_name = '/'.join(parts[1:])
                 else:
-                    raise ValueError(f"Invalid database/schema format: {parts[0]}")
+                    file_name = file_path.split('/')[-1]
+                
+                # Show the parsed components
+                st.sidebar.write(f"**Parsed components:**")
+                st.sidebar.write(f"- Database: `{database}`")
+                st.sidebar.write(f"- Schema: `{schema}`")
+                st.sidebar.write(f"- Stage: `{stage_name}`")
+                st.sidebar.write(f"- File Name: `{file_name}`")
+                
+                # Try to list files in the stage
+                try:
+                    list_query = f"LIST @{database}.{schema}.{stage_name}/"
+                    st.sidebar.code(list_query, language="sql")
+                    
+                    list_result = session.sql(list_query).collect()
+                    stage_files = [str(row[0]) for row in list_result]
+                    
+                    if stage_files:
+                        st.sidebar.write(f"**Found {len(stage_files)} files in stage**")
+                        st.sidebar.write("First 5 files:")
+                        for i, file in enumerate(stage_files[:5]):
+                            st.sidebar.write(f"{i+1}. `{file}`")
+                            
+                        # Look for matching files
+                        target_filename = file_name.split('/')[-1]
+                        matches = [f for f in stage_files if target_filename.lower() in f.lower()]
+                        
+                        if matches:
+                            st.sidebar.success(f"Found {len(matches)} matches for {target_filename}")
+                            for i, match in enumerate(matches[:3]):
+                                st.sidebar.write(f"{i+1}. `{match}`")
+                                
+                            # Use the first match if available
+                            if len(matches) == 1:
+                                st.sidebar.write(f"Using exact match: `{matches[0]}`")
+                                file_name = matches[0]
+                        else:
+                            st.sidebar.warning(f"No files matching '{target_filename}' found")
+                    else:
+                        st.sidebar.warning("No files found in stage")
+                except Exception as e:
+                    st.sidebar.error(f"Error listing stage: {str(e)}")
+                
+                # Try to load the file using direct SELECT
+                yaml_content = None
+                try:
+                    query = f"SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}"
+                    st.sidebar.write("**Trying to load file:**")
+                    st.sidebar.code(query, language="sql")
+                    
+                    result = session.sql(query).collect()
+                    if result and len(result) > 0 and result[0][0]:
+                        yaml_content = result[0][0]
+                        st.sidebar.success(f"Successfully loaded {len(yaml_content)} bytes")
+                    else:
+                        st.sidebar.error("Query returned empty result")
+                        
+                        # Try alternative method
+                        st.sidebar.write("**Trying alternative method:**")
+                        alt_query = f"SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')"
+                        st.sidebar.code(alt_query, language="sql")
+                        
+                        result = session.sql(alt_query).collect()
+                        if result and len(result) > 0 and result[0][0]:
+                            yaml_content = result[0][0]
+                            st.sidebar.success(f"Alternative method loaded {len(yaml_content)} bytes")
+                        else:
+                            # If we still don't have content but the local file is valid, use that
+                            if local_yaml_content and len(local_yaml_content) > 0:
+                                st.sidebar.warning("Using local file as fallback")
+                                yaml_content = local_yaml_content
+                            else:
+                                raise ValueError(f"Could not load file from stage")
+                except Exception as e:
+                    st.sidebar.error(f"Error loading file: {str(e)}")
+                    
+                    # Fall back to local file if available
+                    if local_yaml_content and len(local_yaml_content) > 0:
+                        st.sidebar.warning("Using local file as fallback after error")
+                        yaml_content = local_yaml_content
+                    else:
+                        raise ValueError(f"Failed to load file: {str(e)}")
             else:
-                raise ValueError(f"Invalid stage path format: {file_path}")
+                raise ValueError(f"Invalid path format: Expected database.schema.stage but got {db_schema_stage}")
+        else:
+            raise ValueError(f"Invalid path format: {file_path}")
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)

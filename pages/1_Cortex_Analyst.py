@@ -358,6 +358,13 @@ def display_semantic_model_columns(model_path: str):
                         if exact_matches:
                             file_name = exact_matches[0]
                             st.sidebar.write(f"Using file: {file_name}")
+                            
+                            # For SQL query purposes, check if we need to remove a synthea/ prefix
+                            sql_file_name = file_name
+                            if sql_file_name.startswith('synthea/'):
+                                # Just use the filename without the synthea/ prefix for SQL queries
+                                sql_file_name = sql_file_name.split('/')[-1]
+                                st.sidebar.info(f"Using SQL file name without prefix: {sql_file_name}")
                         else:
                             # Look for partial matches
                             matches = []
@@ -487,7 +494,7 @@ def display_semantic_model_columns(model_path: str):
                     # Basic SELECT with quotes
                     try:
                         # Try the most reliable format
-                        query = f"SELECT $1 FROM '@\"{database}\".\"{schema}\".\"{stage_name}\"/{file_name}';"
+                        query = f"SELECT $1 FROM '@\"{database}\".\"{schema}\".\"{stage_name}\"/{sql_file_name if 'sql_file_name' in locals() else file_name}';"
                         st.sidebar.write("**Loading file with basic SELECT:**")
                         st.sidebar.code(query, language="sql")
                         
@@ -538,7 +545,7 @@ def display_semantic_model_columns(model_path: str):
                             
                             # Try without the quotes
                             try:
-                                query = f"SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name};"
+                                query = f"SELECT $1 FROM @{database}.{schema}.{stage_name}/{sql_file_name if 'sql_file_name' in locals() else file_name};"
                                 st.sidebar.code(query, language="sql")
                                 
                                 result = session.sql(query).collect()

@@ -157,11 +157,17 @@ class SemanticModelParser:
                 self._validate_column_data(dim, "dimension")
                 columns.append(self._create_column(dim, ColumnType.DIMENSION))
 
-        # Parse facts
+        # Parse facts (support both 'facts' and 'measures' keys for backward compatibility)
         if "facts" in table_data:
             for fact in table_data["facts"]:
                 self._validate_column_data(fact, "fact")
                 columns.append(self._create_column(fact, ColumnType.FACT))
+                
+        # Also check for 'measures' key (backward compatibility)
+        if "measures" in table_data:
+            for measure in table_data["measures"]:
+                self._validate_column_data(measure, "measure")
+                columns.append(self._create_column(measure, ColumnType.FACT))
 
         # Parse time dimensions
         if "time_dimensions" in table_data:

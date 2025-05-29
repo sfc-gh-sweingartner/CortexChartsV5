@@ -77,161 +77,87 @@ class SemanticModelParser:
         self.debug_messages.append(f"YAML content type={content_type}, length={content_length}")
         
         # Try to clean up the content first
-        cleaned_yaml = self._cleanup_yaml_content()
-        if cleaned_yaml != self.yaml_content:
-            self.debug_messages.append("YAML content was cleaned up before parsing")
-            self.yaml_content = cleaned_yaml
+        cleaned_yaml = self._cleanup_yaml(self.yaml_content)
         
-        # Add more detailed diagnostics for the content
-        if isinstance(self.yaml_content, str):
-            if content_length == 0:
-                self.debug_messages.append("YAML content is empty string")
-            else:
-                preview = self.yaml_content[:200].replace('\n', '\\n')
-                self.debug_messages.append(f"YAML content preview: {preview}...")
-                
-                # Check for common encoding issues
-                if self.yaml_content.startswith('\ufeff'):
-                    self.debug_messages.append("Content starts with UTF-8 BOM")
-                
-                # Check for YAML document start/end markers
-                if "---" in self.yaml_content[:20]:
-                    self.debug_messages.append("Content starts with YAML document marker '---'")
-                    
-                # Print first few characters as hex for debugging
-                first_chars_hex = " ".join([f"{ord(c):02x}" for c in self.yaml_content[:20]])
-                self.debug_messages.append(f"First 20 chars hex: {first_chars_hex}")
+        # Add a preview of the content (first 50 chars)
+        if isinstance(cleaned_yaml, str) and len(cleaned_yaml) > 0:
+            preview = cleaned_yaml[:min(50, len(cleaned_yaml))]
+            self.debug_messages.append(f"YAML content preview: {preview}...")
+            
+            # Include hex representation of first few chars for debugging
+            first_chars = cleaned_yaml[:min(20, len(cleaned_yaml))]
+            hex_chars = " ".join([f"{ord(c):02x}" for c in first_chars])
+            self.debug_messages.append(f"First 20 chars hex: {hex_chars}")
         
-        # Try to parse the YAML content
-        data = None
         try:
-            data = yaml.safe_load(self.yaml_content)
-            # Debug the loaded data
-            data_type = type(data).__name__
-            self.debug_messages.append(f"Loaded data type={data_type}")
+            import yaml
+            loaded_data = yaml.safe_load(cleaned_yaml)
+            self.debug_messages.append(f"Loaded data type={type(loaded_data).__name__}")
             
-            if data is None:
-                self.debug_messages.append("YAML parsed as None - file may be empty or have only comments")
-            elif isinstance(data, str):
-                preview = data[:100].replace('\n', '\\n')
-                self.debug_messages.append(f"YAML parsed as string: {preview}...")
-            elif isinstance(data, list):
-                self.debug_messages.append(f"YAML parsed as list with {len(data)} items")
-                if len(data) > 0:
-                    self.debug_messages.append(f"First item type: {type(data[0]).__name__}")
-            elif isinstance(data, dict):
-                self.debug_messages.append(f"YAML parsed as dict with {len(data)} keys")
-                if len(data) > 0:
-                    self.debug_messages.append(f"Keys: {', '.join(list(data.keys())[:10])}")
-        except yaml.YAMLError as e:
-            error_msg = f"Invalid YAML format: {str(e)}"
-            self.errors.append(error_msg)
-            self.debug_messages.append(f"YAML parsing error: {error_msg}")
-            
-            # Try alternative parsing approaches
-            self.debug_messages.append("Attempting recovery with alternative parsing")
-            try:
-                # Try with explicit UTF-8 encoding
-                if isinstance(self.yaml_content, str):
-                    # Remove BOM if present
-                    clean_content = self.yaml_content
-                    if clean_content.startswith('\ufeff'):
-                        clean_content = clean_content[1:]
-                        self.debug_messages.append("Removed UTF-8 BOM")
-                    
-                    # Try with PyYAML's BaseLoader which is more permissive
-                    data = yaml.load(clean_content, Loader=yaml.BaseLoader)
-                    self.debug_messages.append(f"Recovery successful, loaded type={type(data).__name__}")
-                    
-                    if data is None:
-                        raise ValueError("Recovery attempt yielded None")
-            except Exception as recovery_e:
-                self.debug_messages.append(f"Recovery attempt failed: {str(recovery_e)}")
-                raise ValueError(error_msg)
-
-        if data is None:
-            error_msg = "Invalid semantic model: parsed YAML is empty"
-            self.errors.append(error_msg)
-            self.debug_messages.append(error_msg)
-            raise ValueError(error_msg)
-
-        if not isinstance(data, dict):
-            error_msg = f"Invalid semantic model: root must be a dictionary, got {type(data).__name__}"
-            self.errors.append(error_msg)
-            self.debug_messages.append(error_msg)
-            raise ValueError(error_msg)
-
-        # If "tables" key is missing, try to find it in nested dictionaries
-        if "tables" not in data:
-            self.debug_messages.append("'tables' key not found in root, searching in nested dictionaries")
-            found_tables = False
-            
-            # Check all top-level keys for a nested dictionary with 'tables'
-            for key, value in data.items():
-                self.debug_messages.append(f"Checking key '{key}', type={type(value).__name__}")
-                if isinstance(value, dict) and "tables" in value:
-                    data = value
-                    found_tables = True
-                    self.debug_messages.append(f"Found 'tables' key in '{key}' dictionary")
-                    break
-            
-            if not found_tables:
-                # Print keys found in data to help debugging
-                keys_str = ", ".join([f"'{k}'" for k in data.keys()][:10])
-                error_msg = f"Invalid semantic model: 'tables' section is required. Found keys: {keys_str}"
-                self.errors.append(error_msg)
-                self.debug_messages.append(error_msg)
-                raise ValueError(error_msg)
-
-        # Parse relationships at model level if they exist
-        model_relationships = []
-        if "relationships" in data:
-            try:
-                model_relationships = self._parse_relationships(data["relationships"])
-            except Exception as e:
-                self.errors.append(f"Error parsing model-level relationships: {str(e)}")
-                self.debug_messages.append(f"Error parsing model-level relationships: {str(e)}")
-
-        # Parse tables
-        if not isinstance(data["tables"], list):
-            error_msg = f"Invalid semantic model: 'tables' must be a list, got {type(data['tables']).__name__}"
-            self.errors.append(error_msg)
-            self.debug_messages.append(error_msg)
-            raise ValueError(error_msg)
-            
-        for table_data in data["tables"]:
-            try:
-                self._validate_table_data(table_data)
-                table = self._parse_table(table_data)
+            if not loaded_data:
+                raise ValueError("YAML content is empty or None")
                 
-                # Add model-level relationships that apply to this table
-                for rel in model_relationships:
-                    if rel.from_table == table.name:
-                        table.relationships.append(rel)
+            if not isinstance(loaded_data, dict):
+                raise ValueError(f"Root must be a dictionary, got {type(loaded_data).__name__}")
+            
+            self.debug_messages.append(f"YAML parsed as dict with {len(loaded_data.keys())} keys")
+            self.debug_messages.append(f"Keys: {', '.join(loaded_data.keys())}")
+            
+            # Check for tables section
+            if "tables" not in loaded_data:
+                self.debug_messages.append("'tables' key not found in root, searching in nested dictionaries")
                 
-                self.tables.append(table)
-            except Exception as e:
-                table_name = table_data.get('name', 'unknown')
-                error_msg = f"Error parsing table '{table_name}': {str(e)}"
-                self.errors.append(error_msg)
-                self.debug_messages.append(error_msg)
+                # Try to find tables in nested dictionaries
+                found_tables = False
+                for key, value in loaded_data.items():
+                    self.debug_messages.append(f"Checking key '{key}', type={type(value).__name__}")
+                    if isinstance(value, dict) and "tables" in value:
+                        loaded_data = value  # Use this nested dict instead
+                        found_tables = True
+                        self.debug_messages.append(f"Found 'tables' in nested key '{key}'")
+                        break
+                
+                # Special handling for files that just have a 'name' key - suggest upload
+                if 'name' in loaded_data and len(loaded_data.keys()) <= 2:
+                    name_val = loaded_data.get('name', 'unknown')
+                    error_msg = f"This appears to be just a file header or stub with name '{name_val}'. Please upload a complete YAML file with a 'tables' section using the manual upload option in the sidebar."
+                    self.debug_messages.append(error_msg)
+                    raise ValueError(error_msg)
+                    
+                if not found_tables:
+                    # List all the keys to help with debugging
+                    available_keys = []
+                    if isinstance(loaded_data, dict):
+                        available_keys = list(loaded_data.keys())
+                    
+                    error_msg = f"Invalid semantic model: 'tables' section is required. Found keys: {', '.join(available_keys)}"
+                    self.debug_messages.append(error_msg)
+                    raise ValueError(error_msg)
+                    
+            # Process tables
+            self._process_tables(loaded_data)
+        except Exception as e:
+            error_msg = f"Error parsing YAML: {str(e)}"
+            self.errors.append(error_msg)
+            self.debug_messages.append(error_msg)
+            raise ValueError(error_msg)
 
         return self.tables, self.debug_messages
 
-    def _cleanup_yaml_content(self) -> str:
+    def _cleanup_yaml(self, yaml_content: str) -> str:
         """Clean up potentially corrupted YAML content.
         
         Returns:
             Cleaned up YAML content
         """
-        if not isinstance(self.yaml_content, str):
-            return self.yaml_content
+        if not isinstance(yaml_content, str):
+            return yaml_content
             
         # If it's an empty string, nothing to clean
-        if not self.yaml_content.strip():
-            return self.yaml_content
+        if not yaml_content.strip():
+            return yaml_content
             
-        cleaned = self.yaml_content
+        cleaned = yaml_content
         
         # Remove UTF-8 BOM if present
         if cleaned.startswith('\ufeff'):
@@ -267,6 +193,41 @@ class SemanticModelParser:
         
         return cleaned
 
+    def _process_tables(self, data: Dict) -> None:
+        """Process the parsed YAML data to create Table objects."""
+        # Parse relationships at model level if they exist
+        model_relationships = []
+        if "relationships" in data:
+            try:
+                model_relationships = self._parse_relationships(data["relationships"])
+            except Exception as e:
+                self.errors.append(f"Error parsing model-level relationships: {str(e)}")
+                self.debug_messages.append(f"Error parsing model-level relationships: {str(e)}")
+
+        # Parse tables
+        if not isinstance(data["tables"], list):
+            error_msg = f"Invalid semantic model: 'tables' must be a list, got {type(data['tables']).__name__}"
+            self.errors.append(error_msg)
+            self.debug_messages.append(error_msg)
+            raise ValueError(error_msg)
+            
+        for table_data in data["tables"]:
+            try:
+                self._validate_table_data(table_data)
+                table = self._parse_table(table_data)
+                
+                # Add model-level relationships that apply to this table
+                for rel in model_relationships:
+                    if rel.from_table == table.name:
+                        table.relationships.append(rel)
+                
+                self.tables.append(table)
+            except Exception as e:
+                table_name = table_data.get('name', 'unknown')
+                error_msg = f"Error parsing table '{table_name}': {str(e)}"
+                self.errors.append(error_msg)
+                self.debug_messages.append(error_msg)
+
     def _validate_table_data(self, table_data: Dict) -> None:
         """Validate table data has required fields.
         
@@ -276,7 +237,9 @@ class SemanticModelParser:
         Raises:
             ValueError: If required fields are missing
         """
-        # Check for required fields
+        if not isinstance(table_data, dict):
+            raise ValueError(f"Table data must be a dictionary, got {type(table_data).__name__}")
+            
         if "name" not in table_data:
             raise ValueError("Table is missing required 'name' field")
             

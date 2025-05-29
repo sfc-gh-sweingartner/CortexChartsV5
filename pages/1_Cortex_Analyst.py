@@ -231,7 +231,17 @@ def display_semantic_model_columns(model_path: str):
                 try:
                     with open(local_file_path, "r") as f:
                         local_yaml_content = f.read()
+                        if len(local_yaml_content) == 0:
+                            st.sidebar.warning(f"**Local file is empty (0 bytes)**: `{local_file_path}`")
+                            continue  # Skip to next file path
+                            
                         st.sidebar.success(f"**Local file loaded:** {len(local_yaml_content)} bytes")
+                        
+                        # Add debug info about the first few bytes
+                        if len(local_yaml_content) > 0:
+                            first_bytes = [ord(c) for c in local_yaml_content[:20]]
+                            st.sidebar.write(f"**First 20 bytes (hex):** {[f'{b:02x}' for b in first_bytes]}")
+                            st.sidebar.write(f"**Content preview:** `{local_yaml_content[:50]}...`")
                         
                         # Validate YAML content by trying to parse it
                         try:
@@ -404,9 +414,44 @@ def display_semantic_model_columns(model_path: str):
                         
                         result = session.sql(special_query).collect()
                         if result and len(result) > 0 and result[0][0]:
-                            yaml_content = result[0][0]
-                            st.sidebar.success(f"Special path loaded: {len(yaml_content)} bytes")
-                            st.session_state["debug_load_method"] = "Special path query"
+                            stage_yaml_content = result[0][0]
+                            st.sidebar.success(f"Special path loaded: {len(stage_yaml_content)} bytes")
+                            
+                            # Validate if this content is a complete YAML with tables section
+                            try:
+                                import yaml
+                                yaml_data = yaml.safe_load(stage_yaml_content)
+                                if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
+                                    st.sidebar.success("Stage file contains valid YAML with 'tables' section")
+                                    yaml_content = stage_yaml_content
+                                    st.session_state["debug_load_method"] = "Special path query"
+                                else:
+                                    st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
+                                    
+                                    # If we have a valid local file, prefer it
+                                    if local_yaml_content and len(local_yaml_content) > 15:
+                                        try:
+                                            local_yaml_data = yaml.safe_load(local_yaml_content)
+                                            if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
+                                                st.sidebar.success("Using local file instead - it has valid 'tables' section")
+                                                yaml_content = local_yaml_content
+                                                st.session_state["debug_load_method"] = "Local file (more complete than stage)"
+                                            else:
+                                                # Neither file is complete, but use the stage one since it was loaded
+                                                yaml_content = stage_yaml_content
+                                                st.session_state["debug_load_method"] = "Special path query (incomplete)"
+                                        except Exception:
+                                            # Local file has YAML errors, use stage content
+                                            yaml_content = stage_yaml_content
+                                            st.session_state["debug_load_method"] = "Special path query (incomplete)"
+                                    else:
+                                        # No valid local file, use stage content even if incomplete
+                                        yaml_content = stage_yaml_content
+                                        st.session_state["debug_load_method"] = "Special path query (incomplete)"
+                            except Exception as yaml_error:
+                                st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
+                                yaml_content = stage_yaml_content
+                                st.session_state["debug_load_method"] = "Special path query (validation failed)"
                     except Exception as e:
                         st.sidebar.warning(f"Special path failed: {str(e)}")
                 
@@ -424,9 +469,44 @@ def display_semantic_model_columns(model_path: str):
                         
                         result = session.sql(query).collect()
                         if result and len(result) > 0 and result[0][0]:
-                            yaml_content = result[0][0]
-                            st.sidebar.success(f"Successfully loaded: {len(yaml_content)} bytes")
-                            st.session_state["debug_load_method"] = "Basic SELECT query"
+                            stage_yaml_content = result[0][0]
+                            st.sidebar.success(f"Successfully loaded: {len(stage_yaml_content)} bytes")
+                            
+                            # Validate if this content is complete
+                            try:
+                                import yaml
+                                yaml_data = yaml.safe_load(stage_yaml_content)
+                                if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
+                                    st.sidebar.success("Stage file contains valid YAML with 'tables' section")
+                                    yaml_content = stage_yaml_content
+                                    st.session_state["debug_load_method"] = "Basic SELECT query"
+                                else:
+                                    st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
+                                    
+                                    # If we have a valid local file, prefer it
+                                    if local_yaml_content and len(local_yaml_content) > 15:
+                                        try:
+                                            local_yaml_data = yaml.safe_load(local_yaml_content)
+                                            if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
+                                                st.sidebar.success("Using local file instead - it has valid 'tables' section")
+                                                yaml_content = local_yaml_content
+                                                st.session_state["debug_load_method"] = "Local file (more complete than stage)"
+                                            else:
+                                                # Neither file is complete, but use the stage one
+                                                yaml_content = stage_yaml_content
+                                                st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
+                                        except Exception:
+                                            # Local file has YAML errors, use stage content
+                                            yaml_content = stage_yaml_content
+                                            st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
+                                    else:
+                                        # No valid local file, use stage content even if incomplete
+                                        yaml_content = stage_yaml_content
+                                        st.session_state["debug_load_method"] = "Basic SELECT query (incomplete)"
+                            except Exception as yaml_error:
+                                st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
+                                yaml_content = stage_yaml_content
+                                st.session_state["debug_load_method"] = "Basic SELECT query (validation failed)"
                         else:
                             err_msg = "Query returned empty result"
                             loading_errors.append(err_msg)
@@ -439,9 +519,44 @@ def display_semantic_model_columns(model_path: str):
                                 
                                 result = session.sql(query).collect()
                                 if result and len(result) > 0 and result[0][0]:
-                                    yaml_content = result[0][0]
-                                    st.sidebar.success(f"Unquoted SELECT loaded: {len(yaml_content)} bytes")
-                                    st.session_state["debug_load_method"] = "Unquoted SELECT query"
+                                    stage_yaml_content = result[0][0]
+                                    st.sidebar.success(f"Unquoted SELECT loaded: {len(stage_yaml_content)} bytes")
+                                    
+                                    # Validate if this content is complete
+                                    try:
+                                        import yaml
+                                        yaml_data = yaml.safe_load(stage_yaml_content)
+                                        if yaml_data and isinstance(yaml_data, dict) and "tables" in yaml_data:
+                                            st.sidebar.success("Stage file contains valid YAML with 'tables' section")
+                                            yaml_content = stage_yaml_content
+                                            st.session_state["debug_load_method"] = "Unquoted SELECT query"
+                                        else:
+                                            st.sidebar.warning(f"Stage file has incomplete YAML - missing 'tables' section. Found keys: {list(yaml_data.keys() if yaml_data and isinstance(yaml_data, dict) else [])}")
+                                            
+                                            # If we have a valid local file, prefer it
+                                            if local_yaml_content and len(local_yaml_content) > 15:
+                                                try:
+                                                    local_yaml_data = yaml.safe_load(local_yaml_content)
+                                                    if local_yaml_data and isinstance(local_yaml_data, dict) and "tables" in local_yaml_data:
+                                                        st.sidebar.success("Using local file instead - it has valid 'tables' section")
+                                                        yaml_content = local_yaml_content
+                                                        st.session_state["debug_load_method"] = "Local file (more complete than stage)"
+                                                    else:
+                                                        # Neither file is complete, but use the stage one
+                                                        yaml_content = stage_yaml_content
+                                                        st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
+                                                except Exception:
+                                                    # Local file has YAML errors, use stage content
+                                                    yaml_content = stage_yaml_content
+                                                    st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
+                                            else:
+                                                # No valid local file, use stage content even if incomplete
+                                                yaml_content = stage_yaml_content
+                                                st.session_state["debug_load_method"] = "Unquoted SELECT query (incomplete)"
+                                    except Exception as yaml_error:
+                                        st.sidebar.warning(f"Error validating stage YAML: {str(yaml_error)}")
+                                        yaml_content = stage_yaml_content
+                                        st.session_state["debug_load_method"] = "Unquoted SELECT query (validation failed)"
                             except Exception as e2:
                                 loading_errors.append(f"Unquoted SELECT failed: {str(e2)}")
                                 st.sidebar.warning(f"Unquoted SELECT error: {str(e2)}")

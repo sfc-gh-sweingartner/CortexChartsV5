@@ -158,366 +158,538 @@ def display_semantic_model_columns(model_path: str):
         st.session_state.selected_columns = set()
         st.session_state.column_operations = {}
     
+    # Add manual file upload option
+    with st.sidebar.expander("⚠️ Upload YAML manually", expanded=False):
+        st.write("If automatic loading fails, you can upload the YAML file manually:")
+        uploaded_file = st.file_uploader("Upload semantic model YAML", type=['yaml', 'yml'])
+        if uploaded_file is not None:
+            # Read the file content
+            uploaded_content = uploaded_file.read().decode('utf-8')
+            st.success(f"Uploaded file: {uploaded_file.name} ({len(uploaded_content)} bytes)")
+            
+            # Store it in session state for later use
+            st.session_state["manual_yaml_content"] = uploaded_content
+            
+            # Show a button to use this content
+            if st.button("Use uploaded file"):
+                try:
+                    # Parse directly using the uploaded content
+                    parser = SemanticModelParser(uploaded_content)
+                    tables, debug_messages = parser.parse()
+                    
+                    if tables:
+                        st.success(f"Successfully parsed uploaded file. Found {len(tables)} tables.")
+                        # Store the tables in session state
+                        st.session_state["model_tables"] = tables
+                        st.session_state["model_debug_messages"] = debug_messages
+                        st.rerun()  # Rerun to refresh the UI with the parsed model
+                    else:
+                        st.error("No tables found in the uploaded file.")
+                except Exception as e:
+                    st.error(f"Error parsing uploaded file: {str(e)}")
+    
     try:
-        # Read the semantic model file using a different approach
-        file_path = model_path.split("@")[-1]  # Remove @ prefix if present
-        
-        # Display direct debugging for the file path
-        st.sidebar.write(f"**Debug - Loading Model Path:** `{model_path}`")
-        st.sidebar.write(f"**Debug - Parsed File Path:** `{file_path}`")
-        
-        # Check if we can read the local file first, just to debug issues
-        local_yaml_content = None
-        try:
-            local_file_path = f"Dev/{file_path.split('/')[-1]}"
-            st.sidebar.write(f"**Debug - Checking Local File:** `{local_file_path}`")
-            
-            # Check if file exists and its size
-            with open(local_file_path, "r") as f:
-                local_yaml_content = f.read()
-                st.sidebar.write(f"**Local file size:** {len(local_yaml_content)} bytes")
-                
-                # Check first few bytes for debugging
-                if len(local_yaml_content) > 0:
-                    first_bytes = [ord(c) for c in local_yaml_content[:10]]
-                    st.sidebar.write(f"**First 10 bytes (hex):** {[f'{b:02x}' for b in first_bytes]}")
-        except FileNotFoundError:
-            st.sidebar.write("Local file not found")
-        except Exception as e:
-            st.sidebar.write(f"Error checking local file: {str(e)}")
-            
-        # ALWAYS try to load from Snowflake stage
-        st.sidebar.write("**Attempting to load from Snowflake stage**")
-        
-        # Parse path components
-        parts = file_path.split('/')
-        if len(parts) >= 1:
-            db_schema_stage = parts[0]
-            db_schema_parts = db_schema_stage.split('.')
-            
-            if len(db_schema_parts) >= 3:  # We have database.schema.stage
-                database = db_schema_parts[0]
-                schema = db_schema_parts[1]
-                stage_name = db_schema_parts[2]
-                
-                # File name is everything after the first part
-                if len(parts) > 1:
-                    file_name = '/'.join(parts[1:])
-                else:
-                    file_name = file_path.split('/')[-1]
-                
-                # Show the parsed components
-                st.sidebar.write(f"**Parsed components:**")
-                st.sidebar.write(f"- Database: `{database}`")
-                st.sidebar.write(f"- Schema: `{schema}`")
-                st.sidebar.write(f"- Stage: `{stage_name}`")
-                st.sidebar.write(f"- File Name: `{file_name}`")
-                
-                # Try to list files in the stage - use quoted identifiers
-                try:
-                    list_query = f'LIST @"{database}"."{schema}"."{stage_name}"/'
-                    st.sidebar.code(list_query, language="sql")
-                    
-                    list_result = session.sql(list_query).collect()
-                    stage_files = [str(row[0]) for row in list_result]
-                    
-                    if stage_files:
-                        st.sidebar.write(f"**Found {len(stage_files)} files in stage**")
-                        st.sidebar.write("First 5 files:")
-                        for i, file in enumerate(stage_files[:5]):
-                            st.sidebar.write(f"{i+1}. `{file}`")
-                            
-                        # Look for matching files
-                        target_filename = file_name.split('/')[-1]
-                        matches = [f for f in stage_files if target_filename.lower() in f.lower()]
-                        
-                        if matches:
-                            st.sidebar.success(f"Found {len(matches)} matches for {target_filename}")
-                            for i, match in enumerate(matches[:3]):
-                                st.sidebar.write(f"{i+1}. `{match}`")
-                                
-                            # Use the first match if available
-                            if len(matches) == 1:
-                                st.sidebar.write(f"Using exact match: `{matches[0]}`")
-                                file_name = matches[0]  # Use the full path from stage listing
-                        else:
-                            st.sidebar.warning(f"No files matching '{target_filename}' found")
-                    else:
-                        st.sidebar.warning("No files found in stage")
-                except Exception as e:
-                    st.sidebar.error(f"Error listing stage: {str(e)}")
-                
-                # Try to load the file using direct SELECT with quoted identifiers
-                yaml_content = None
-                try:
-                    # Properly format the query with quoted identifiers and the file path
-                    query = f'SELECT $1 FROM @"{database}"."{schema}"."{stage_name}"/{file_name}'
-                    st.sidebar.write("**Trying to load file:**")
-                    st.sidebar.code(query, language="sql")
-                    
-                    result = session.sql(query).collect()
-                    if result and len(result) > 0 and result[0][0]:
-                        yaml_content = result[0][0]
-                        st.sidebar.success(f"Successfully loaded {len(yaml_content)} bytes")
-                    else:
-                        st.sidebar.error("Query returned empty result")
-                        
-                        # If we have a local file with content, use that as fallback
-                        if local_yaml_content and len(local_yaml_content) > 0:
-                            st.sidebar.warning("Using local file as fallback")
-                            yaml_content = local_yaml_content
-                        else:
-                            raise ValueError(f"Could not load file from stage or local file")
-                except Exception as e:
-                    st.sidebar.error(f"Error loading file: {str(e)}")
-                    
-                    # Fall back to local file if available
-                    if local_yaml_content and len(local_yaml_content) > 0:
-                        st.sidebar.warning("Using local file as fallback after error")
-                        yaml_content = local_yaml_content
-                    else:
-                        raise ValueError(f"Failed to load file: {str(e)}")
-            else:
-                raise ValueError(f"Invalid path format: Expected database.schema.stage but got {db_schema_stage}")
+        # First check if we have tables from a manually uploaded file
+        if "model_tables" in st.session_state:
+            tables = st.session_state["model_tables"]
+            debug_messages = st.session_state.get("model_debug_messages", [])
+            st.sidebar.success("Using manually uploaded semantic model")
         else:
-            raise ValueError(f"Invalid path format: {file_path}")
-        
-        # Parse the semantic model
-        parser = SemanticModelParser(yaml_content)
-        tables, debug_messages = parser.parse()
-        
-        # Initialize session state for selected columns if not exists
-        if "selected_columns" not in st.session_state:
-            st.session_state.selected_columns = set()
-        
-        # Display model information if available
-        if tables:
-            st.markdown("### Semantic Model Columns")
-            st.write(f"**Tables:** {len(tables)}")
+            # Otherwise proceed with normal loading process
+            # Read the semantic model file using a different approach
+            file_path = model_path.split("@")[-1]  # Remove @ prefix if present
             
-            # Create filter options for column types
-            col_type_filter = st.multiselect(
-                "Filter by column type:",
-                ["Dimensions", "Facts", "Time Dimensions"],
-                default=["Dimensions", "Facts", "Time Dimensions"],
-                key="column_type_filter"
-            )
+            # Display direct debugging for the file path
+            st.sidebar.write(f"**Debug - Loading Model Path:** `{model_path}`")
+            st.sidebar.write(f"**Debug - Parsed File Path:** `{file_path}`")
             
-            # Map the filter options to ColumnType enum values
-            type_map = {
-                "Dimensions": ColumnType.DIMENSION,
-                "Facts": ColumnType.FACT,
-                "Time Dimensions": ColumnType.TIME_DIMENSION
+            # Check if we can read the local file first, just to debug issues
+            local_yaml_content = None
+            try:
+                local_file_path = f"Dev/{file_path.split('/')[-1]}"
+                st.sidebar.write(f"**Debug - Checking Local File:** `{local_file_path}`")
+                
+                # Check if file exists and its size
+                with open(local_file_path, "r") as f:
+                    local_yaml_content = f.read()
+                    st.sidebar.write(f"**Local file size:** {len(local_yaml_content)} bytes")
+                    
+                    # Check first few bytes for debugging
+                    if len(local_yaml_content) > 0:
+                        first_bytes = [ord(c) for c in local_yaml_content[:10]]
+                        st.sidebar.write(f"**First 10 bytes (hex):** {[f'{b:02x}' for b in first_bytes]}")
+            except FileNotFoundError:
+                st.sidebar.write("Local file not found")
+            except Exception as e:
+                st.sidebar.write(f"Error checking local file: {str(e)}")
+            
+            # ALWAYS try to load from Snowflake stage
+            st.sidebar.write("**Attempting to load from Snowflake stage**")
+            
+            # Parse path components
+            parts = file_path.split('/')
+            if len(parts) >= 1:
+                db_schema_stage = parts[0]
+                db_schema_parts = db_schema_stage.split('.')
+                
+                if len(db_schema_parts) >= 3:  # We have database.schema.stage
+                    database = db_schema_parts[0]
+                    schema = db_schema_parts[1]
+                    stage_name = db_schema_parts[2]
+                    
+                    # File name is everything after the first part
+                    if len(parts) > 1:
+                        file_name = '/'.join(parts[1:])
+                    else:
+                        file_name = file_path.split('/')[-1]
+                    
+                    # Show the parsed components
+                    st.sidebar.write(f"**Parsed components:**")
+                    st.sidebar.write(f"- Database: `{database}`")
+                    st.sidebar.write(f"- Schema: `{schema}`")
+                    st.sidebar.write(f"- Stage: `{stage_name}`")
+                    st.sidebar.write(f"- File Name: `{file_name}`")
+                    
+                    # Try to list files in the stage - use quoted identifiers
+                    try:
+                        list_query = f'LIST @"{database}"."{schema}"."{stage_name}"/'
+                        st.sidebar.code(list_query, language="sql")
+                        
+                        list_result = session.sql(list_query).collect()
+                        stage_files = [str(row[0]) for row in list_result]
+                        
+                        if stage_files:
+                            st.sidebar.write(f"**Found {len(stage_files)} files in stage**")
+                            st.sidebar.write("First 5 files:")
+                            for i, file in enumerate(stage_files[:5]):
+                                st.sidebar.write(f"{i+1}. `{file}`")
+                                
+                            # Look for matching files
+                            target_filename = file_name.split('/')[-1]
+                            matches = [f for f in stage_files if target_filename.lower() in f.lower()]
+                            
+                            if matches:
+                                st.sidebar.success(f"Found {len(matches)} matches for {target_filename}")
+                                for i, match in enumerate(matches[:3]):
+                                    st.sidebar.write(f"{i+1}. `{match}`")
+                                    
+                                # Use the first match if available
+                                if len(matches) == 1:
+                                    st.sidebar.write(f"Using exact match: `{matches[0]}`")
+                                    file_name = matches[0]  # Use the full path from stage listing
+                            else:
+                                st.sidebar.warning(f"No files matching '{target_filename}' found")
+                        else:
+                            st.sidebar.warning("No files found in stage")
+                    except Exception as e:
+                        st.sidebar.error(f"Error listing stage: {str(e)}")
+                    
+                    # Attempt multiple methods to load the file
+                    yaml_content = None
+                    loading_errors = []
+                    
+                    # Method 1: Direct SELECT with quoted identifiers
+                    try:
+                        query = f'SELECT $1 FROM @"{database}"."{schema}"."{stage_name}"/{file_name}'
+                        st.sidebar.write("**Method 1: Direct SELECT**")
+                        st.sidebar.code(query, language="sql")
+                        
+                        result = session.sql(query).collect()
+                        if result and len(result) > 0 and result[0][0]:
+                            yaml_content = result[0][0]
+                            st.sidebar.success(f"Method 1 successful: Loaded {len(yaml_content)} bytes")
+                        else:
+                            err_msg = "Query returned empty result"
+                            loading_errors.append(f"Method 1 failed: {err_msg}")
+                            st.sidebar.warning(err_msg)
+                    except Exception as e:
+                        err_msg = str(e)
+                        loading_errors.append(f"Method 1 failed: {err_msg}")
+                        st.sidebar.warning(f"Method 1 error: {err_msg}")
+                    
+                    # Method 2: Alternative syntax without $1
+                    if yaml_content is None:
+                        try:
+                            query = f'SELECT * FROM @"{database}"."{schema}"."{stage_name}"/{file_name}'
+                            st.sidebar.write("**Method 2: SELECT * syntax**")
+                            st.sidebar.code(query, language="sql")
+                            
+                            result = session.sql(query).collect()
+                            if result and len(result) > 0 and result[0][0]:
+                                yaml_content = result[0][0]
+                                st.sidebar.success(f"Method 2 successful: Loaded {len(yaml_content)} bytes")
+                            else:
+                                err_msg = "Query returned empty result"
+                                loading_errors.append(f"Method 2 failed: {err_msg}")
+                                st.sidebar.warning(err_msg)
+                        except Exception as e:
+                            err_msg = str(e)
+                            loading_errors.append(f"Method 2 failed: {err_msg}")
+                            st.sidebar.warning(f"Method 2 error: {err_msg}")
+                    
+                    # Method 3: Try copying to internal stage first
+                    if yaml_content is None:
+                        try:
+                            # Create a temporary table to store the file content
+                            tmp_table_name = f"TEMP_YAML_CONTENT_{int(time.time())}"
+                            create_query = f'CREATE TEMPORARY TABLE "{tmp_table_name}" (content VARCHAR);'
+                            st.sidebar.write("**Method 3: Copy to temp table**")
+                            st.sidebar.code(create_query, language="sql")
+                            
+                            session.sql(create_query).collect()
+                            
+                            # Copy the file content into the temporary table
+                            copy_query = f'COPY INTO "{tmp_table_name}" FROM @"{database}"."{schema}"."{stage_name}"/{file_name} FILE_FORMAT = (TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY = NONE);'
+                            st.sidebar.code(copy_query, language="sql")
+                            
+                            copy_result = session.sql(copy_query).collect()
+                            st.sidebar.write(f"Copy result: {copy_result}")
+                            
+                            # Retrieve the content
+                            select_query = f'SELECT content FROM "{tmp_table_name}" LIMIT 1;'
+                            st.sidebar.code(select_query, language="sql")
+                            
+                            select_result = session.sql(select_query).collect()
+                            if select_result and len(select_result) > 0 and select_result[0][0]:
+                                yaml_content = select_result[0][0]
+                                st.sidebar.success(f"Method 3 successful: Loaded {len(yaml_content)} bytes")
+                            else:
+                                err_msg = "No content retrieved from temporary table"
+                                loading_errors.append(f"Method 3 failed: {err_msg}")
+                                st.sidebar.warning(err_msg)
+                            
+                            # Drop the temporary table
+                            drop_query = f'DROP TABLE IF EXISTS "{tmp_table_name}";'
+                            session.sql(drop_query).collect()
+                        except Exception as e:
+                            err_msg = str(e)
+                            loading_errors.append(f"Method 3 failed: {err_msg}")
+                            st.sidebar.warning(f"Method 3 error: {err_msg}")
+                    
+                    # Method 4: Try direct download through Python connector
+                    if yaml_content is None:
+                        try:
+                            st.sidebar.write("**Method 4: Python connector GET**")
+                            import tempfile
+                            import os
+                            
+                            # Create a temp file to hold the downloaded content
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.yaml') as tmp_file:
+                                temp_path = tmp_file.name
+                            
+                            # Use the Snowflake session connection to download
+                            stage_location = f'@"{database}"."{schema}"."{stage_name}"/{file_name}'
+                            get_query = f"GET {stage_location} file://{temp_path} OVERWRITE = TRUE;"
+                            st.sidebar.code(get_query, language="sql")
+                            
+                            # This will download the file to the specified path
+                            get_result = session.sql(get_query).collect()
+                            st.sidebar.write(f"GET command result: {get_result}")
+                            
+                            # Check if file exists and read it
+                            if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                                with open(temp_path, 'r') as f:
+                                    yaml_content = f.read()
+                                st.sidebar.success(f"Method 4 successful: Loaded {len(yaml_content)} bytes")
+                                
+                                # Clean up temp file
+                                os.unlink(temp_path)
+                            else:
+                                err_msg = "Downloaded file is empty or does not exist"
+                                loading_errors.append(f"Method 4 failed: {err_msg}")
+                                st.sidebar.warning(err_msg)
+                        except Exception as e:
+                            err_msg = str(e)
+                            loading_errors.append(f"Method 4 failed: {err_msg}")
+                            st.sidebar.warning(f"Method 4 error: {err_msg}")
+                    
+                    # Final fallback to local file if available and no stage content was loaded
+                    if yaml_content is None and local_yaml_content and len(local_yaml_content) > 0:
+                        st.sidebar.warning("All stage loading methods failed. Using local file as fallback.")
+                        yaml_content = local_yaml_content
+                        st.sidebar.success(f"Using local file: {len(yaml_content)} bytes")
+                    
+                    # If we still don't have content, give up
+                    if yaml_content is None:
+                        error_details = "\n".join(loading_errors)
+                        raise ValueError(f"Failed to load file using any method.\n{error_details}")
+                    
+                    # Store debug information for the error expander
+                    st.session_state["debug_path_info"] = {
+                        "database": database,
+                        "schema": schema,
+                        "stage": stage_name,
+                        "file_name": file_name,
+                        "full_path": f'@"{database}"."{schema}"."{stage_name}"/{file_name}'
+                    }
+                    st.session_state["debug_stage_files"] = stage_files if 'stage_files' in locals() else []
+                    st.session_state["debug_load_errors"] = loading_errors
+                    
+                    # If we're here, we have content
+                    st.sidebar.success(f"Successfully loaded semantic model ({len(yaml_content)} bytes)")
+                else:
+                    raise ValueError(f"Invalid path format: Expected database.schema.stage but got {db_schema_stage}")
+            else:
+                raise ValueError(f"Invalid path format: {file_path}")
+            
+            # Parse the semantic model
+            parser = SemanticModelParser(yaml_content)
+            tables, debug_messages = parser.parse()
+            
+            # Initialize session state for selected columns if not exists
+            if "selected_columns" not in st.session_state:
+                st.session_state.selected_columns = set()
+            
+            # Display model information if available
+            if tables:
+                st.markdown("### Semantic Model Columns")
+                st.write(f"**Tables:** {len(tables)}")
+                
+                # Create filter options for column types
+                col_type_filter = st.multiselect(
+                    "Filter by column type:",
+                    ["Dimensions", "Facts", "Time Dimensions"],
+                    default=["Dimensions", "Facts", "Time Dimensions"],
+                    key="column_type_filter"
+                )
+                
+                # Map the filter options to ColumnType enum values
+                type_map = {
+                    "Dimensions": ColumnType.DIMENSION,
+                    "Facts": ColumnType.FACT,
+                    "Time Dimensions": ColumnType.TIME_DIMENSION
+                }
+                
+                # Filter columns by type
+                filtered_types = [type_map[t] for t in col_type_filter]
+                
+                # Optional search box for columns
+                search_term = st.text_input("Search columns:", key="column_search").lower()
+            
+            # Add custom CSS for tooltips
+            st.markdown("""
+            <style>
+            .column-tooltip {
+                position: relative;
+                display: inline-block;
             }
             
-            # Filter columns by type
-            filtered_types = [type_map[t] for t in col_type_filter]
+            .column-tooltip .tooltip-text {
+                visibility: hidden;
+                width: 250px;
+                background-color: #333;
+                color: #fff;
+                text-align: left;
+                border-radius: 6px;
+                padding: 5px;
+                position: absolute;
+                z-index: 1;
+                bottom: 125%;
+                left: 50%;
+                margin-left: -125px;
+                opacity: 0;
+                transition: opacity 0.3s;
+                font-size: 0.8em;
+                line-height: 1.2;
+            }
             
-            # Optional search box for columns
-            search_term = st.text_input("Search columns:", key="column_search").lower()
-        
-        # Add custom CSS for tooltips
-        st.markdown("""
-        <style>
-        .column-tooltip {
-            position: relative;
-            display: inline-block;
-        }
-        
-        .column-tooltip .tooltip-text {
-            visibility: hidden;
-            width: 250px;
-            background-color: #333;
-            color: #fff;
-            text-align: left;
-            border-radius: 6px;
-            padding: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -125px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.8em;
-            line-height: 1.2;
-        }
-        
-        .column-tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 0.9;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Create an expander for each table
-        for table in sorted(tables, key=lambda x: x.name):
-            # Filter columns in this table based on selected types
-            table_columns = [col for col in table.columns if col.column_type in filtered_types]
+            .column-tooltip:hover .tooltip-text {
+                visibility: visible;
+                opacity: 0.9;
+            }
+            </style>
+            """, unsafe_allow_html=True)
             
-            # Apply search filter if provided
-            if search_term:
-                table_columns = [col for col in table_columns if search_term in col.name.lower() or 
-                                (col.description and search_term in col.description.lower())]
-            
-            # Skip empty tables after filtering
-            if not table_columns:
-                continue
+            # Create an expander for each table
+            for table in sorted(tables, key=lambda x: x.name):
+                # Filter columns in this table based on selected types
+                table_columns = [col for col in table.columns if col.column_type in filtered_types]
                 
-            with st.expander(f"📊 {table.name}", expanded=False):
-                # Show table description if available
-                if table.description:
-                    st.markdown(f"*{table.description}*")
+                # Apply search filter if provided
+                if search_term:
+                    table_columns = [col for col in table_columns if search_term in col.name.lower() or 
+                                    (col.description and search_term in col.description.lower())]
                 
-                # Create a container for the columns
-                for col in table_columns:
-                    # Create unique key for checkbox
-                    col_key = f"{table.name}.{col.name}"
+                # Skip empty tables after filtering
+                if not table_columns:
+                    continue
                     
-                    # Extract column info
-                    type_display = col.column_type.value.replace('_', ' ').title()
-                    description = col.description or "No description available"
+                with st.expander(f"📊 {table.name}", expanded=False):
+                    # Show table description if available
+                    if table.description:
+                        st.markdown(f"*{table.description}*")
                     
-                    # Add icon based on column type
-                    icon = "🔢" if col.column_type == ColumnType.FACT else "📅" if col.column_type == ColumnType.TIME_DIMENSION else "📝"
-                    
-                    # Add sample values if available
-                    sample_text = ""
-                    if hasattr(col, 'sample_values') and col.sample_values and len(col.sample_values) > 0:
-                        samples = ", ".join([str(v) for v in col.sample_values[:3]])
-                        sample_text = f"\n<strong>Examples:</strong> {samples}"
-                    
-                    # Use a single column instead of split columns and handle the checkbox state
-                    # The value is determined solely by whether the column key is in selected_columns
-                    # This avoids trying to directly modify widget values which causes errors
-                    checked = st.checkbox(
-                        f"{icon} {col.name}",
-                        key=f"col_{col_key}",
-                        value=col_key in st.session_state.selected_columns,
-                        help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}{sample_text}"
-                    )
-                    
-                    # Update the selection state
-                    if checked:
-                        st.session_state.selected_columns.add(col_key)
-                    else:
-                        st.session_state.selected_columns.discard(col_key)
-        
-        # If columns are selected, show the operation selection table
-        if st.session_state.selected_columns:
-            st.markdown("### Selected Columns")
+                    # Create a container for the columns
+                    for col in table_columns:
+                        # Create unique key for checkbox
+                        col_key = f"{table.name}.{col.name}"
+                        
+                        # Extract column info
+                        type_display = col.column_type.value.replace('_', ' ').title()
+                        description = col.description or "No description available"
+                        
+                        # Add icon based on column type
+                        icon = "🔢" if col.column_type == ColumnType.FACT else "📅" if col.column_type == ColumnType.TIME_DIMENSION else "📝"
+                        
+                        # Add sample values if available
+                        sample_text = ""
+                        if hasattr(col, 'sample_values') and col.sample_values and len(col.sample_values) > 0:
+                            samples = ", ".join([str(v) for v in col.sample_values[:3]])
+                            sample_text = f"\n<strong>Examples:</strong> {samples}"
+                        
+                        # Use a single column instead of split columns and handle the checkbox state
+                        # The value is determined solely by whether the column key is in selected_columns
+                        # This avoids trying to directly modify widget values which causes errors
+                        checked = st.checkbox(
+                            f"{icon} {col.name}",
+                            key=f"col_{col_key}",
+                            value=col_key in st.session_state.selected_columns,
+                            help=f"Type: {type_display} | Data Type: {col.data_type} | Description: {description}{sample_text}"
+                        )
+                        
+                        # Update the selection state
+                        if checked:
+                            st.session_state.selected_columns.add(col_key)
+                        else:
+                            st.session_state.selected_columns.discard(col_key)
             
-            # Prepare data for the operations table
-            operations_data = []
-            
-            # Process each selected column
-            for col_key in sorted(st.session_state.selected_columns):
-                table_name, col_name = col_key.split(".")
+            # If columns are selected, show the operation selection table
+            if st.session_state.selected_columns:
+                st.markdown("### Selected Columns")
                 
-                # Get or initialize operation settings
-                if col_key not in st.session_state.column_operations:
-                    # Default operation based on column type
-                    default_op = "Group By"
+                # Prepare data for the operations table
+                operations_data = []
+                
+                # Process each selected column
+                for col_key in sorted(st.session_state.selected_columns):
+                    table_name, col_name = col_key.split(".")
+                    
+                    # Get or initialize operation settings
+                    if col_key not in st.session_state.column_operations:
+                        # Default operation based on column type
+                        default_op = "Group By"
+                        for table in tables:
+                            if table.name == table_name:
+                                for col in table.columns:
+                                    if col.name == col_name:
+                                        if col.column_type == ColumnType.FACT:
+                                            default_op = "Sum"
+                                        elif col.column_type == ColumnType.TIME_DIMENSION:
+                                            default_op = "Group By"
+                                        break
+                                break
+                                
+                        st.session_state.column_operations[col_key] = {
+                            "results": default_op,
+                            "filter": "Don't Filter"
+                        }
+                    
+                    # Determine available operations based on column type
+                    col_type = None
                     for table in tables:
                         if table.name == table_name:
                             for col in table.columns:
                                 if col.name == col_name:
-                                    if col.column_type == ColumnType.FACT:
-                                        default_op = "Sum"
-                                    elif col.column_type == ColumnType.TIME_DIMENSION:
-                                        default_op = "Group By"
+                                    col_type = col.column_type
                                     break
                             break
-                            
+                    
+                    # Different operation options based on column type
+                    if col_type == ColumnType.FACT:
+                        operations = ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"]
+                    elif col_type == ColumnType.TIME_DIMENSION:
+                        operations = ["Group By", "Count", "Truncate to Day", "Truncate to Month", "Don't Show"]
+                    else:  # Dimension
+                        operations = ["Group By", "Count", "Don't Show"]
+                    
+                    operations_data.append({
+                        "Table": table_name,
+                        "Column": col_name,
+                        "Results": st.selectbox(
+                            f"Results for {table_name}.{col_name}",
+                            operations,
+                            key=f"results_{col_key}",
+                            index=operations.index(
+                                st.session_state.column_operations[col_key]["results"]
+                            ) if st.session_state.column_operations[col_key]["results"] in operations else 0
+                        ),
+                        "Filter": st.text_input(
+                            f"Filter for {table_name}.{col_name}",
+                            value=st.session_state.column_operations[col_key]["filter"],
+                            key=f"filter_{col_key}"
+                        )
+                    })
+                    
+                    # Update the operation in session state
                     st.session_state.column_operations[col_key] = {
-                        "results": default_op,
-                        "filter": "Don't Filter"
+                        "results": operations_data[-1]["Results"],
+                        "filter": operations_data[-1]["Filter"]
                     }
                 
-                # Determine available operations based on column type
-                col_type = None
-                for table in tables:
-                    if table.name == table_name:
-                        for col in table.columns:
-                            if col.name == col_name:
-                                col_type = col.column_type
-                                break
-                        break
+                # Clean up operations for columns that are no longer selected
+                for col_key in list(st.session_state.column_operations.keys()):
+                    if col_key not in st.session_state.selected_columns:
+                        del st.session_state.column_operations[col_key]
                 
-                # Different operation options based on column type
-                if col_type == ColumnType.FACT:
-                    operations = ["Group By", "Sum", "Count", "Avg", "Min", "Max", "Don't Show"]
-                elif col_type == ColumnType.TIME_DIMENSION:
-                    operations = ["Group By", "Count", "Truncate to Day", "Truncate to Month", "Don't Show"]
-                else:  # Dimension
-                    operations = ["Group By", "Count", "Don't Show"]
+                # Add Generate Prompt button and editable prompt area
+                # Full width Generate Prompt button
+                if st.button("Generate Prompt", use_container_width=True, type="primary"):
+                    prompt = generate_prompt_from_selections()
+                    # Store the prompt in session state to display in the preview area
+                    st.session_state.pending_prompt = prompt
+                    st.session_state.show_prompt_preview = True
+                    st.rerun()  # Rerun to show the preview
                 
-                operations_data.append({
-                    "Table": table_name,
-                    "Column": col_name,
-                    "Results": st.selectbox(
-                        f"Results for {table_name}.{col_name}",
-                        operations,
-                        key=f"results_{col_key}",
-                        index=operations.index(
-                            st.session_state.column_operations[col_key]["results"]
-                        ) if st.session_state.column_operations[col_key]["results"] in operations else 0
-                    ),
-                    "Filter": st.text_input(
-                        f"Filter for {table_name}.{col_name}",
-                        value=st.session_state.column_operations[col_key]["filter"],
-                        key=f"filter_{col_key}"
+                # If we have a pending prompt, show the preview
+                if st.session_state.show_prompt_preview and st.session_state.pending_prompt:
+                    st.markdown("### Preview Prompt")
+                    # Create an editable text area for the prompt
+                    edited_prompt = st.text_area(
+                        "Edit your prompt before sending:",
+                        value=st.session_state.pending_prompt,
+                        height=100,
+                        key="prompt_editor"
                     )
-                })
-                
-                # Update the operation in session state
-                st.session_state.column_operations[col_key] = {
-                    "results": operations_data[-1]["Results"],
-                    "filter": operations_data[-1]["Filter"]
-                }
-            
-            # Clean up operations for columns that are no longer selected
-            for col_key in list(st.session_state.column_operations.keys()):
-                if col_key not in st.session_state.selected_columns:
-                    del st.session_state.column_operations[col_key]
-            
-            # Add Generate Prompt button and editable prompt area
-            # Full width Generate Prompt button
-            if st.button("Generate Prompt", use_container_width=True, type="primary"):
-                prompt = generate_prompt_from_selections()
-                # Store the prompt in session state to display in the preview area
-                st.session_state.pending_prompt = prompt
-                st.session_state.show_prompt_preview = True
-                st.rerun()  # Rerun to show the preview
-            
-            # If we have a pending prompt, show the preview
-            if st.session_state.show_prompt_preview and st.session_state.pending_prompt:
-                st.markdown("### Preview Prompt")
-                # Create an editable text area for the prompt
-                edited_prompt = st.text_area(
-                    "Edit your prompt before sending:",
-                    value=st.session_state.pending_prompt,
-                    height=100,
-                    key="prompt_editor"
-                )
-                
-                # Add Send to Chat button
-                if st.button("Send to Chat", type="primary"):
-                    # Instead of just storing the prompt, directly process it
-                    prompt = edited_prompt
-                    st.session_state.show_prompt_preview = False
-                    st.session_state.pending_prompt = None
-                    # Process the prompt directly
-                    process_user_input(prompt)
-                    # No need for st.rerun() since process_user_input will rerun
-                
-                # Add Clear button
-                if st.button("Clear", type="secondary"):
-                    st.session_state.show_prompt_preview = False
-                    st.session_state.pending_prompt = None
-                    st.rerun()
+                    
+                    # Add Send to Chat button
+                    if st.button("Send to Chat", type="primary"):
+                        # Instead of just storing the prompt, directly process it
+                        prompt = edited_prompt
+                        st.session_state.show_prompt_preview = False
+                        st.session_state.pending_prompt = None
+                        # Process the prompt directly
+                        process_user_input(prompt)
+                        # No need for st.rerun() since process_user_input will rerun
+                    
+                    # Add Clear button
+                    if st.button("Clear", type="secondary"):
+                        st.session_state.show_prompt_preview = False
+                        st.session_state.pending_prompt = None
+                        st.rerun()
 
     except Exception as e:
+        # First check if we have manually uploaded model data
+        if "model_tables" in st.session_state:
+            tables = st.session_state["model_tables"]
+            debug_messages = st.session_state.get("model_debug_messages", [])
+            st.sidebar.success("Using manually uploaded semantic model as fallback")
+            
+            # Continue with the existing code for displaying model data
+            if "selected_columns" not in st.session_state:
+                st.session_state.selected_columns = set()
+            
+            # Skip to the model display section
+            if tables:
+                st.markdown("### Semantic Model Columns")
+                st.write(f"**Tables:** {len(tables)}")
+                
+                # Rest of the display code...
+                # Add a note about the error
+                st.sidebar.warning(f"Note: Using manually uploaded model because automatic loading failed: {str(e)}")
+                
+                return  # Return early to avoid showing the error
+        
+        # If we don't have manually uploaded content or it failed, show the error
         st.error(f"Error loading semantic model: {str(e)}")
         import traceback
         error_details = traceback.format_exc()

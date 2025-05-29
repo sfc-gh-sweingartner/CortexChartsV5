@@ -76,6 +76,12 @@ class SemanticModelParser:
         content_length = len(self.yaml_content) if isinstance(self.yaml_content, (str, bytes)) else 0
         self.debug_messages.append(f"YAML content type={content_type}, length={content_length}")
         
+        # Try to clean up the content first
+        cleaned_yaml = self._cleanup_yaml_content()
+        if cleaned_yaml != self.yaml_content:
+            self.debug_messages.append("YAML content was cleaned up before parsing")
+            self.yaml_content = cleaned_yaml
+        
         # Add more detailed diagnostics for the content
         if isinstance(self.yaml_content, str):
             if content_length == 0:
@@ -211,6 +217,55 @@ class SemanticModelParser:
                 self.debug_messages.append(error_msg)
 
         return self.tables, self.debug_messages
+
+    def _cleanup_yaml_content(self) -> str:
+        """Clean up potentially corrupted YAML content.
+        
+        Returns:
+            Cleaned up YAML content
+        """
+        if not isinstance(self.yaml_content, str):
+            return self.yaml_content
+            
+        # If it's an empty string, nothing to clean
+        if not self.yaml_content.strip():
+            return self.yaml_content
+            
+        cleaned = self.yaml_content
+        
+        # Remove UTF-8 BOM if present
+        if cleaned.startswith('\ufeff'):
+            cleaned = cleaned[1:]
+            self.debug_messages.append("Removed UTF-8 BOM during cleanup")
+        
+        # Fix broken line endings (sometimes \r\n gets mangled)
+        if '\r\n' in cleaned:
+            cleaned = cleaned.replace('\r\n', '\n')
+            self.debug_messages.append("Normalized line endings during cleanup")
+        
+        # Fix YAML indentation issues (common in exported files)
+        fixed_lines = []
+        for line in cleaned.split('\n'):
+            # Fix lines with mixed tabs and spaces
+            if '\t' in line:
+                spaces_count = len(line) - len(line.lstrip(' '))
+                tabs_count = len(line) - len(line.lstrip('\t'))
+                
+                if spaces_count > 0 and tabs_count > 0:
+                    # Replace tabs with 2 spaces
+                    line = line.replace('\t', '  ')
+                    self.debug_messages.append("Fixed mixed tabs and spaces during cleanup")
+            
+            fixed_lines.append(line)
+        
+        cleaned = '\n'.join(fixed_lines)
+        
+        # Ensure the document starts with ---
+        if not cleaned.startswith('---') and not cleaned.startswith('name:'):
+            cleaned = '---\n' + cleaned
+            self.debug_messages.append("Added YAML document start marker during cleanup")
+        
+        return cleaned
 
     def _validate_table_data(self, table_data: Dict) -> None:
         """Validate table data has required fields.

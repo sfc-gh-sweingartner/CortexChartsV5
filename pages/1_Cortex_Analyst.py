@@ -216,7 +216,7 @@ def display_semantic_model_columns(model_path: str):
         
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
-        tables = parser.parse()
+        tables, debug_messages = parser.parse()
         
         # Initialize session state for selected columns if not exists
         if "selected_columns" not in st.session_state:
@@ -452,7 +452,37 @@ def display_semantic_model_columns(model_path: str):
     except Exception as e:
         st.error(f"Error loading semantic model: {str(e)}")
         import traceback
-        st.sidebar.error(f"Error details: {traceback.format_exc()}")
+        error_details = traceback.format_exc()
+        
+        # Display an expander with detailed debug information
+        with st.expander("Show debug information"):
+            st.code(error_details)
+            
+            # If we have the parser object with debug messages, display them
+            if 'parser' in locals() and hasattr(parser, 'get_debug_messages'):
+                debug_messages = parser.get_debug_messages()
+                if debug_messages:
+                    st.markdown("### Debug Messages")
+                    for i, msg in enumerate(debug_messages):
+                        st.text(f"{i+1}. {msg}")
+            
+            # If we have access to yaml_content, show a preview
+            if 'yaml_content' in locals():
+                st.markdown("### YAML Content Preview")
+                st.text(f"Type: {type(yaml_content).__name__}")
+                st.text(f"Length: {len(yaml_content) if isinstance(yaml_content, (str, bytes)) else 'unknown'}")
+                if isinstance(yaml_content, str):
+                    st.code(yaml_content[:1000] + ('...' if len(yaml_content) > 1000 else ''), language='yaml')
+                else:
+                    st.text(f"Content cannot be displayed: {type(yaml_content).__name__}")
+            
+            # Show query used to fetch the YAML
+            if 'query' in locals():
+                st.markdown("### Query Used")
+                st.code(query, language='sql')
+        
+        # Regular error display for sidebar
+        st.sidebar.error(f"Error details: {error_details}")
 
 
 def generate_prompt_from_selections() -> str:

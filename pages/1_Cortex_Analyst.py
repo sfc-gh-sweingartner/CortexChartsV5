@@ -48,7 +48,7 @@ st.set_page_config(
 # List of available semantic model paths in the format: <DATABASE>.<SCHEMA>.<STAGE>/<FILE-NAME>
 # Each path points to a YAML file defining a semantic model
 AVAILABLE_SEMANTIC_MODELS_PATHS = [
-    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
+    "SYNTHEA.SYNTHEA.SYNTHEA/synthea/syntheav4.yaml",
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
 ]
@@ -213,9 +213,9 @@ def display_semantic_model_columns(model_path: str):
                 st.sidebar.write(f"- Stage: `{stage_name}`")
                 st.sidebar.write(f"- File Name: `{file_name}`")
                 
-                # Try to list files in the stage
+                # Try to list files in the stage - use quoted identifiers
                 try:
-                    list_query = f"LIST @{database}.{schema}.{stage_name}/"
+                    list_query = f'LIST @"{database}"."{schema}"."{stage_name}"/'
                     st.sidebar.code(list_query, language="sql")
                     
                     list_result = session.sql(list_query).collect()
@@ -239,7 +239,7 @@ def display_semantic_model_columns(model_path: str):
                             # Use the first match if available
                             if len(matches) == 1:
                                 st.sidebar.write(f"Using exact match: `{matches[0]}`")
-                                file_name = matches[0]
+                                file_name = matches[0]  # Use the full path from stage listing
                         else:
                             st.sidebar.warning(f"No files matching '{target_filename}' found")
                     else:
@@ -247,10 +247,11 @@ def display_semantic_model_columns(model_path: str):
                 except Exception as e:
                     st.sidebar.error(f"Error listing stage: {str(e)}")
                 
-                # Try to load the file using direct SELECT
+                # Try to load the file using direct SELECT with quoted identifiers
                 yaml_content = None
                 try:
-                    query = f"SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}"
+                    # Properly format the query with quoted identifiers and the file path
+                    query = f'SELECT $1 FROM @"{database}"."{schema}"."{stage_name}"/{file_name}'
                     st.sidebar.write("**Trying to load file:**")
                     st.sidebar.code(query, language="sql")
                     
@@ -261,22 +262,12 @@ def display_semantic_model_columns(model_path: str):
                     else:
                         st.sidebar.error("Query returned empty result")
                         
-                        # Try alternative method
-                        st.sidebar.write("**Trying alternative method:**")
-                        alt_query = f"SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')"
-                        st.sidebar.code(alt_query, language="sql")
-                        
-                        result = session.sql(alt_query).collect()
-                        if result and len(result) > 0 and result[0][0]:
-                            yaml_content = result[0][0]
-                            st.sidebar.success(f"Alternative method loaded {len(yaml_content)} bytes")
+                        # If we have a local file with content, use that as fallback
+                        if local_yaml_content and len(local_yaml_content) > 0:
+                            st.sidebar.warning("Using local file as fallback")
+                            yaml_content = local_yaml_content
                         else:
-                            # If we still don't have content but the local file is valid, use that
-                            if local_yaml_content and len(local_yaml_content) > 0:
-                                st.sidebar.warning("Using local file as fallback")
-                                yaml_content = local_yaml_content
-                            else:
-                                raise ValueError(f"Could not load file from stage")
+                            raise ValueError(f"Could not load file from stage or local file")
                 except Exception as e:
                     st.sidebar.error(f"Error loading file: {str(e)}")
                     

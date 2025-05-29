@@ -76,10 +76,28 @@ class SemanticModelParser:
         content_length = len(self.yaml_content) if isinstance(self.yaml_content, (str, bytes)) else 0
         self.debug_messages.append(f"YAML content type={content_type}, length={content_length}")
         
-        if content_length > 0 and isinstance(self.yaml_content, str):
-            preview = self.yaml_content[:200].replace('\n', '\\n')
-            self.debug_messages.append(f"YAML content preview: {preview}...")
+        # Add more detailed diagnostics for the content
+        if isinstance(self.yaml_content, str):
+            if content_length == 0:
+                self.debug_messages.append("YAML content is empty string")
+            else:
+                preview = self.yaml_content[:200].replace('\n', '\\n')
+                self.debug_messages.append(f"YAML content preview: {preview}...")
+                
+                # Check for common encoding issues
+                if self.yaml_content.startswith('\ufeff'):
+                    self.debug_messages.append("Content starts with UTF-8 BOM")
+                
+                # Check for YAML document start/end markers
+                if "---" in self.yaml_content[:20]:
+                    self.debug_messages.append("Content starts with YAML document marker '---'")
+                    
+                # Print first few characters as hex for debugging
+                first_chars_hex = " ".join([f"{ord(c):02x}" for c in self.yaml_content[:20]])
+                self.debug_messages.append(f"First 20 chars hex: {first_chars_hex}")
         
+        # Try to parse the YAML content
+        data = None
         try:
             data = yaml.safe_load(self.yaml_content)
             # Debug the loaded data
@@ -95,44 +113,54 @@ class SemanticModelParser:
                 self.debug_messages.append(f"YAML parsed as list with {len(data)} items")
                 if len(data) > 0:
                     self.debug_messages.append(f"First item type: {type(data[0]).__name__}")
+            elif isinstance(data, dict):
+                self.debug_messages.append(f"YAML parsed as dict with {len(data)} keys")
+                if len(data) > 0:
+                    self.debug_messages.append(f"Keys: {', '.join(list(data.keys())[:10])}")
         except yaml.YAMLError as e:
             error_msg = f"Invalid YAML format: {str(e)}"
             self.errors.append(error_msg)
             self.debug_messages.append(f"YAML parsing error: {error_msg}")
-            raise ValueError(error_msg)
-
-        if data is None or not isinstance(data, dict):
-            # Try to recover - if it's a string, try re-parsing after some cleanup
-            if isinstance(self.yaml_content, str):
-                self.debug_messages.append("Attempting recovery - cleaning up content and re-parsing")
-                clean_content = self.yaml_content.strip()
-                
-                # Try to handle UTF-8 BOM if present
-                if clean_content.startswith('\ufeff'):
-                    clean_content = clean_content[1:]
-                    self.debug_messages.append("Removed UTF-8 BOM marker")
-                
-                try:
-                    data = yaml.safe_load(clean_content)
-                    self.debug_messages.append(f"After cleanup, loaded data type={type(data).__name__}")
-                    
-                    if not isinstance(data, dict):
-                        error_msg = f"Invalid semantic model: root must be a dictionary, got {type(data).__name__}"
-                        self.errors.append(error_msg)
-                        self.debug_messages.append(f"Recovery failed: {error_msg}")
-                        raise ValueError(error_msg)
-                except Exception as e:
-                    self.debug_messages.append(f"Recovery attempt failed: {str(e)}")
             
-            error_msg = "Invalid semantic model: root must be a dictionary"
+            # Try alternative parsing approaches
+            self.debug_messages.append("Attempting recovery with alternative parsing")
+            try:
+                # Try with explicit UTF-8 encoding
+                if isinstance(self.yaml_content, str):
+                    # Remove BOM if present
+                    clean_content = self.yaml_content
+                    if clean_content.startswith('\ufeff'):
+                        clean_content = clean_content[1:]
+                        self.debug_messages.append("Removed UTF-8 BOM")
+                    
+                    # Try with PyYAML's BaseLoader which is more permissive
+                    data = yaml.load(clean_content, Loader=yaml.BaseLoader)
+                    self.debug_messages.append(f"Recovery successful, loaded type={type(data).__name__}")
+                    
+                    if data is None:
+                        raise ValueError("Recovery attempt yielded None")
+            except Exception as recovery_e:
+                self.debug_messages.append(f"Recovery attempt failed: {str(recovery_e)}")
+                raise ValueError(error_msg)
+
+        if data is None:
+            error_msg = "Invalid semantic model: parsed YAML is empty"
             self.errors.append(error_msg)
+            self.debug_messages.append(error_msg)
             raise ValueError(error_msg)
 
-        # If data starts with a document marker (---), the actual content might be in a nested structure
+        if not isinstance(data, dict):
+            error_msg = f"Invalid semantic model: root must be a dictionary, got {type(data).__name__}"
+            self.errors.append(error_msg)
+            self.debug_messages.append(error_msg)
+            raise ValueError(error_msg)
+
+        # If "tables" key is missing, try to find it in nested dictionaries
         if "tables" not in data:
-            # Try to find tables in any of the nested dictionaries
-            found_tables = False
             self.debug_messages.append("'tables' key not found in root, searching in nested dictionaries")
+            found_tables = False
+            
+            # Check all top-level keys for a nested dictionary with 'tables'
             for key, value in data.items():
                 self.debug_messages.append(f"Checking key '{key}', type={type(value).__name__}")
                 if isinstance(value, dict) and "tables" in value:
@@ -142,11 +170,11 @@ class SemanticModelParser:
                     break
             
             if not found_tables:
-                # Print first 100 chars of yaml_content to debug
-                preview = self.yaml_content[:500] if isinstance(self.yaml_content, str) else str(self.yaml_content)[:500]
-                preview = preview.replace('\n', '\\n')
-                error_msg = f"Invalid semantic model: 'tables' section is required. YAML preview: {preview}..."
+                # Print keys found in data to help debugging
+                keys_str = ", ".join([f"'{k}'" for k in data.keys()][:10])
+                error_msg = f"Invalid semantic model: 'tables' section is required. Found keys: {keys_str}"
                 self.errors.append(error_msg)
+                self.debug_messages.append(error_msg)
                 raise ValueError(error_msg)
 
         # Parse relationships at model level if they exist
@@ -156,8 +184,15 @@ class SemanticModelParser:
                 model_relationships = self._parse_relationships(data["relationships"])
             except Exception as e:
                 self.errors.append(f"Error parsing model-level relationships: {str(e)}")
+                self.debug_messages.append(f"Error parsing model-level relationships: {str(e)}")
 
         # Parse tables
+        if not isinstance(data["tables"], list):
+            error_msg = f"Invalid semantic model: 'tables' must be a list, got {type(data['tables']).__name__}"
+            self.errors.append(error_msg)
+            self.debug_messages.append(error_msg)
+            raise ValueError(error_msg)
+            
         for table_data in data["tables"]:
             try:
                 self._validate_table_data(table_data)
@@ -170,7 +205,10 @@ class SemanticModelParser:
                 
                 self.tables.append(table)
             except Exception as e:
-                self.errors.append(f"Error parsing table '{table_data.get('name', 'unknown')}': {str(e)}")
+                table_name = table_data.get('name', 'unknown')
+                error_msg = f"Error parsing table '{table_name}': {str(e)}"
+                self.errors.append(error_msg)
+                self.debug_messages.append(error_msg)
 
         return self.tables, self.debug_messages
 
@@ -207,18 +245,19 @@ class SemanticModelParser:
                 self._validate_column_data(dim, "dimension")
                 columns.append(self._create_column(dim, ColumnType.DIMENSION))
 
-        # Parse facts (support both 'facts' and 'measures' keys)
-        facts_key = None
-        if "facts" in table_data:
-            facts_key = "facts"
-        elif "measures" in table_data:
-            facts_key = "measures"
-            self.debug_messages.append(f"Using 'measures' key instead of 'facts' for table {table_data['name']}")
-            
-        if facts_key:
-            for fact in table_data[facts_key]:
-                self._validate_column_data(fact, "fact")
-                columns.append(self._create_column(fact, ColumnType.FACT))
+        # Parse facts (support both 'facts' and 'measures' keys for backward compatibility)
+        facts = []
+        if "facts" in table_data and isinstance(table_data["facts"], list):
+            facts = table_data["facts"]
+            self.debug_messages.append(f"Found {len(facts)} facts in table '{table_data['name']}'")
+        elif "measures" in table_data and isinstance(table_data["measures"], list):
+            facts = table_data["measures"]
+            self.debug_messages.append(f"Using 'measures' key instead of 'facts' for table '{table_data['name']}' - found {len(facts)} measures")
+        
+        # Process the facts/measures
+        for fact in facts:
+            self._validate_column_data(fact, "fact")
+            columns.append(self._create_column(fact, ColumnType.FACT))
                 
         # Parse time dimensions
         if "time_dimensions" in table_data:

@@ -17,6 +17,16 @@ You can find V3 here: https://github.com/sfc-gh-sweingartner/CortexChartsV3/tree
 4. **Dashboard** - View and manage all your visualizations
 5. **Map Designer** - Create and customize geospatial visualizations
 
+
+## Your Data
+You can install this on top of your existing yaml files (and thus your own data)
+To get a better experience with with charts, you can add statments like these as custom instructions to your yaml files
+custom_instructions: |-
+  1. Avoid returning date columns unless asked to show the date or break out the info by date.  For example, if you are asked to bring back something for the entire time period, do not bring back the start and end date.  
+  2. If you are asked to return the location of something, bring back both the latitude and the longitude columns.
+  3. All week, month, and year columns should be in a date type rather than as text.  When aggregating a date, use date_truc() which returns a date rather than date_part() or year() which returns a number
+  4. If a query includes location (e.g. lat, lon) then use ifnull to convert all null fact columns to zero
+
 ## Chart Selection Logic
 
 The chart selection system follows a 3-step process to determine the best visualization based on your data structure:

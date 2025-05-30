@@ -54,8 +54,3 @@ CREATE OR REPLACE FILE FORMAT cortex_read_yaml_format
   EMPTY_FIELD_AS_NULL = FALSE
   TRIM_SPACE = FALSE
   NULL_IF = (''); -- Adjust as needed
-
--- Then use it in your SELECT
-SELECT $1
-FROM '@"SYNTHEA"."SYNTHEA"."SYNTHEA"/syntheav4.yaml'
-(FILE_FORMAT => 'cortex_read_yaml_format');

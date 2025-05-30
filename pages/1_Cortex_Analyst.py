@@ -163,25 +163,33 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Use session.read.text to read the YAML file from stage
+        # Use SELECT $1 with a named 'raw text' file format
         yaml_content = None
         staged_file_access_path = f"@{file_path}" # e.g. @DATABASE.SCHEMA.STAGE/path/to/file.yaml
         
+        # Ensure this named file format exists in your Snowflake environment and is accessible.
+        # Example: CREATE OR REPLACE FILE FORMAT YOUR_DB.YOUR_SCHEMA.my_raw_text_format TYPE = CSV FIELD_DELIMITER = NONE EMPTY_FIELD_AS_NULL = FALSE ...;
+        # Adjust the file format name if yours is different or in a different schema.
+        # Assuming the format is in the session's current schema or fully qualified.
+        # For simplicity, let's assume it's accessible as 'my_raw_text_format'. 
+        # If it's in a specific schema, use 'YOUR_SCHEMA.my_raw_text_format'.
+        # We will use the name you provided from scratch.sql, assuming it's in the session's default schema.
+        named_file_format = "my_raw_text_format" # Make sure this is correct and accessible
+
+        query = f"""SELECT $1 
+FROM '{staged_file_access_path}' 
+(FILE_FORMAT => '{named_file_format}');"""
+        
         try:
-            # Read the file line by line into a DataFrame
-            # Snowpark typically names the single column 'value' for text files
-            df = session.read.option("compression", "NONE").text(staged_file_access_path)
-            
-            # Collect all rows. Each row is a Snowpark Row object.
-            # The first element of the row (index 0) contains the line of text.
-            lines = [row[0] for row in df.collect()]
-            
-            if lines:
-                yaml_content = "\n".join(lines)
+            result = session.sql(query).collect()
+            if result and len(result) > 0 and result[0][0] is not None:
+                yaml_content = result[0][0]
             else:
-                raise ValueError(f"session.read.text returned no lines for '{staged_file_access_path}'. The file might be empty or inaccessible.")
+                raise ValueError(f"Query with named file format '{named_file_format}' returned no data or None for '{file_path}'. File might be empty, inaccessible, or path/format name incorrect.")
         except Exception as e:
-            raise ValueError(f"Error reading from stage with session.read.text for '{staged_file_access_path}': {str(e)}")
+            if "Failed to parse stage location" in str(e) or "syntax error" in str(e).lower() or "does not exist or not authorized" in str(e).lower():
+                 raise ValueError(f"Error with SQL query using named file format: {query}. Ensure path '{file_path}' and format '{named_file_format}' are correct and accessible. Original error: {str(e)}")
+            raise ValueError(f"Error reading from stage with named file format '{named_file_format}' for '{file_path}': {str(e)}. Query: {query}")
 
         if yaml_content is None or not yaml_content.strip(): # Ensure content is not just whitespace
             raise ValueError(f"Failed to load YAML content from stage for '{file_path}'. Content is empty or could not be read.")

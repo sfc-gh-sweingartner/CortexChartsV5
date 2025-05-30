@@ -168,7 +168,7 @@ def display_semantic_model_columns(model_path: str):
         staged_file_path = f"@{file_path}" # Construct fully qualified stage path e.g. @db.schema.stage/path/to/file.yaml
         
         try:
-            with SnowflakeFile.open(staged_file_path, 'r', encoding='utf-8') as f:
+            with SnowflakeFile.open(staged_file_path, 'r') as f:
                 yaml_content = f.read()
         except Exception as e:
             raise ValueError(f"Error reading from stage with SnowflakeFile.open '{staged_file_path}': {str(e)}")

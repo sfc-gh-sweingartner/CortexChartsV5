@@ -1063,9 +1063,9 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_charge = create_chart6(df_display, chart_metadata['chart6_columns'])
+                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
                 
-                if alt_charge:
+                if alt_chart:
                     chart_created = True
                     chart_type = "Chart 6: Multi-Dimension Scatter"
             

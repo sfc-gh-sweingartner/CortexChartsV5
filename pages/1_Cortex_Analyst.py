@@ -171,9 +171,12 @@ def display_semantic_model_columns(model_path: str):
         
         # Define the SQL query with inline file format
         # Using triple quotes for the SQL query to handle internal single quotes easily.
+        # Note: For inline file formats, options are typically specified with = instead of =>
+        # String values within options list must be appropriately quoted, e.g., NULL_IF = (\'\') for an empty string.
         query = f"""SELECT $1 
 FROM '{staged_file_access_path}' 
-(FILE_FORMAT => (TYPE => CSV, FIELD_DELIMITER => NONE, EMPTY_FIELD_AS_NULL => FALSE, SKIP_HEADER => 0, TRIM_SPACE => FALSE, NULL_IF => (\'\')));"""
+(FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = NONE, EMPTY_FIELD_AS_NULL = FALSE, SKIP_HEADER = 0, TRIM_SPACE = FALSE, NULL_IF = (\'NONE\', \'NULL\')));"""
+        # Changed NULL_IF to (\'NONE\', \'NULL\') as common practice, empty string (\'\') might be tricky in some contexts.
         
         try:
             result = session.sql(query).collect()

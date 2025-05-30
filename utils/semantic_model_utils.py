@@ -71,9 +71,25 @@ class SemanticModelParser:
         try:
             data = yaml.safe_load(self.yaml_content)
         except yaml.YAMLError as e:
-            error_msg = f"Invalid YAML format: {str(e)}"
-            self.errors.append(error_msg)
-            raise ValueError(error_msg)
+            # Check for custom_instructions and attempt fallback parsing
+            custom_instructions_marker = "custom_instructions:"
+            if custom_instructions_marker in self.yaml_content:
+                try:
+                    content_before_custom_instructions = self.yaml_content.split(custom_instructions_marker, 1)[0]
+                    data = yaml.safe_load(content_before_custom_instructions)
+                    self.errors.append(
+                        f"Warning: YAML parsing failed initially. Successfully parsed content before 'custom_instructions'. "
+                        f"The 'custom_instructions' block or subsequent text might contain syntax errors or may not be processed. Error: {str(e)}"
+                    )
+                    print(f"SemanticModelParser WARNING: YAML parsing failed initially. Successfully parsed content before 'custom_instructions'. Error: {str(e)}") # For console visibility
+                except yaml.YAMLError as fallback_e:
+                    error_msg = f"Invalid YAML format even after attempting to parse before 'custom_instructions': {str(fallback_e)}. Original error: {str(e)}"
+                    self.errors.append(error_msg)
+                    raise ValueError(error_msg)
+            else:
+                error_msg = f"Invalid YAML format: {str(e)}"
+                self.errors.append(error_msg)
+                raise ValueError(error_msg)
 
         if not isinstance(data, dict):
             error_msg = "Invalid semantic model: root must be a dictionary"

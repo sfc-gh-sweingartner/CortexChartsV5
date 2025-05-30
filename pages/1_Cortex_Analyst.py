@@ -16,6 +16,7 @@ from snowflake.snowpark.context import (
     get_active_session,
 )  # To interact with Snowflake sessions
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.files import SnowflakeFile
 import sys
 import os
 
@@ -162,60 +163,18 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Removed local file reading logic. Now always attempts to read from Snowpark stage.
-        # Handle different path formats more robustly
-        parts = file_path.split('/')
-        if len(parts) >= 2:
-            # Extract the database, schema, and stage parts
-            db_schema_parts = parts[0].split('.')
-            if len(db_schema_parts) >= 2:
-                database = db_schema_parts[0]
-                schema = db_schema_parts[1]
-                # The stage might be the third part of db_schema_parts or the second part of the path
-                if len(db_schema_parts) >= 3:
-                    stage_name = db_schema_parts[2]
-                else:
-                    stage_name = parts[1]
-                
-                # The file name is everything after the stage in the path
-                if len(db_schema_parts) >= 3:
-                    file_name = '/'.join(parts[1:])
-                else:
-                    file_name = '/'.join(parts[2:])
-                
-                # Use Snowpark SQL to read the file content
-                # Ensure yaml_content is initialized before potentially being used
-                yaml_content = None
-                query = f"""
-                SELECT $1 FROM @{database}.{schema}.{stage_name}/{file_name}
-                """
-                result = session.sql(query).collect()
-                if result and len(result) > 0:
-                    yaml_content = result[0][0]
-                else:
-                    # Try an alternative query format for older Snowflake versions
-                    alt_query = f"""
-                    SELECT GET_STAGED_FILE_CONTENT('@{database}.{schema}.{stage_name}/{file_name}')
-                    """
-                    try:
-                        result = session.sql(alt_query).collect()
-                        if result and len(result) > 0:
-                            yaml_content = result[0][0]
-                        else:
-                            # If content is still None or empty after both attempts
-                            if not yaml_content:
-                                raise ValueError(f"Could not read file from stage: {file_path}. File might be empty or inaccessible.")
-                    except Exception as e:
-                        # If content is still None or empty after both attempts and an error occurred with the alternative
-                        if not yaml_content:
-                             raise ValueError(f"Failed to read file with alternative method: {str(e)}. File path: {file_path}")
-            else:
-                raise ValueError(f"Invalid database/schema format: {parts[0]}")
-        else:
-            raise ValueError(f"Invalid stage path format: {file_path}")
+        # Use SnowflakeFile.open to read from stage
+        yaml_content = None
+        staged_file_path = f"@{file_path}" # Construct fully qualified stage path e.g. @db.schema.stage/path/to/file.yaml
+        
+        try:
+            with SnowflakeFile.open(staged_file_path, 'r', encoding='utf-8') as f:
+                yaml_content = f.read()
+        except Exception as e:
+            raise ValueError(f"Error reading from stage with SnowflakeFile.open '{staged_file_path}': {str(e)}")
 
-        if yaml_content is None:
-            raise ValueError(f"Failed to load YAML content from stage for {file_path}. Content is empty.")
+        if yaml_content is None or not yaml_content.strip():
+            raise ValueError(f"Failed to load YAML content from stage for {staged_file_path}. Content is empty or could not be read.")
         
         # DEBUG: Print type and beginning of yaml_content
         print(f"YAML content type before parsing: {type(yaml_content)}")

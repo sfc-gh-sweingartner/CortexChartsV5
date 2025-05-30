@@ -24,9 +24,7 @@ import os
 try:
     import pydeck as pdk
     import numpy as np
-    print("Successfully imported pydeck and numpy for geospatial visualization")
 except ImportError as e:
-    print(f"Warning: Failed to import geospatial libraries: {str(e)}")
     # These dependencies may not be available
     pass
 
@@ -1065,9 +1063,9 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                     }
                 }
                 df_display.attrs['chart_metadata'] = chart_metadata
-                alt_chart = create_chart6(df_display, chart_metadata['chart6_columns'])
+                alt_charge = create_chart6(df_display, chart_metadata['chart6_columns'])
                 
-                if alt_chart:
+                if alt_charge:
                     chart_created = True
                     chart_type = "Chart 6: Multi-Dimension Scatter"
             

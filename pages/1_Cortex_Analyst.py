@@ -186,12 +186,8 @@ FROM '{staged_file_access_path}'
                 # Each row in result_rows contains one line of the YAML in its first column (index 0).
                 # Filter out potential None values if a line could be null for some reason.
                 lines = [row[0] for row in result_rows if row[0] is not None]
-                st.sidebar.info(f"DEBUG: Collected {len(lines)} lines from stage for {file_path}.") # DEBUG PRINT
                 if lines:
                     yaml_content = "\n".join(lines)
-                else:
-                    # This case implies rows were returned but their content was None.
-                    raise ValueError(f"Query with named file format '{named_file_format}' returned rows with no valid content for '{file_path}'.")
             else:
                 raise ValueError(f"Query with named file format '{named_file_format}' returned no data for '{file_path}'. File might be empty, inaccessible, or path/format name incorrect.")
         except Exception as e:
@@ -202,11 +198,6 @@ FROM '{staged_file_access_path}'
         if yaml_content is None or not yaml_content.strip(): # Ensure content is not just whitespace
             raise ValueError(f"Failed to load YAML content from stage for '{file_path}'. Content is empty or could not be read.")
         
-        # DEBUG: Print type and beginning of yaml_content
-        print(f"YAML content type before parsing: {type(yaml_content)}")
-        print(f"First 500 chars of YAML content before parsing: {yaml_content[:500]}")
-        print(f"Last 500 chars of YAML content before parsing: {yaml_content[-500:] if len(yaml_content) > 500 else yaml_content}")
-
         # Parse the semantic model
         parser = SemanticModelParser(yaml_content)
         tables = parser.parse()
@@ -446,20 +437,6 @@ FROM '{staged_file_access_path}'
         st.error(f"Error loading semantic model: {str(e)}")
         import traceback
         st.sidebar.error(f"Error details: {traceback.format_exc()}")
-        
-        # Display YAML content debug info in the sidebar
-        if 'yaml_content' in locals() or 'yaml_content' in globals():
-            st.sidebar.markdown("---")
-            st.sidebar.subheader("YAML Content Debug Information (from stage):")
-            st.sidebar.text(f"YAML content type: {type(yaml_content)}")
-            st.sidebar.text("First 500 chars:")
-            st.sidebar.code(yaml_content[:500] if yaml_content else "YAML content is None or empty", language="yaml")
-            st.sidebar.text("Last 500 chars:")
-            st.sidebar.code(yaml_content[-500:] if yaml_content and len(yaml_content) > 500 else yaml_content, language="yaml")
-        else:
-            st.sidebar.markdown("---")
-            st.sidebar.subheader("YAML Content Debug Information:")
-            st.sidebar.text("'yaml_content' variable was not available for debugging.")
 
 
 def generate_prompt_from_selections() -> str:

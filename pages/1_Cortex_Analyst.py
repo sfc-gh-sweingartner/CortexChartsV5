@@ -163,18 +163,25 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Use SnowflakeFile.open to read from stage
+        # Use GET_STAGED_FILE_CONTENT to read from stage
         yaml_content = None
-        staged_file_path = f"@{file_path}" # Construct fully qualified stage path e.g. @db.schema.stage/path/to/file.yaml
+        staged_file_query = f"SELECT GET_STAGED_FILE_CONTENT('@{file_path}')"
         
         try:
-            with SnowflakeFile.open(staged_file_path, 'r') as f:
-                yaml_content = f.read()
+            result = session.sql(staged_file_query).collect()
+            if result and len(result) > 0 and result[0][0] is not None:
+                yaml_content = result[0][0]
+            else:
+                raise ValueError(f"GET_STAGED_FILE_CONTENT returned no data or None for '{file_path}'. The file might be empty, inaccessible, or the path is incorrect.")
         except Exception as e:
-            raise ValueError(f"Error reading from stage with SnowflakeFile.open '{staged_file_path}': {str(e)}")
+            # Catch SnowparkSQLException specifically if needed, or general Exception
+            # Check if the error message indicates a parsing issue with the path itself
+            if "Failed to parse stage location" in str(e):
+                 raise ValueError(f"Error parsing stage location for GET_STAGED_FILE_CONTENT: '{file_path}'. Ensure the path is correct. Original error: {str(e)}")
+            raise ValueError(f"Error reading from stage with GET_STAGED_FILE_CONTENT for '{file_path}': {str(e)}")
 
-        if yaml_content is None or not yaml_content.strip():
-            raise ValueError(f"Failed to load YAML content from stage for {staged_file_path}. Content is empty or could not be read.")
+        if yaml_content is None or not yaml_content.strip(): # Ensure content is not just whitespace
+            raise ValueError(f"Failed to load YAML content from stage for '{file_path}'. Content is empty or could not be read.")
         
         # DEBUG: Print type and beginning of yaml_content
         print(f"YAML content type before parsing: {type(yaml_content)}")

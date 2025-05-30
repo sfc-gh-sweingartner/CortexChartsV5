@@ -163,22 +163,28 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Use GET_STAGED_FILE_CONTENT to read from stage
+        # Use SELECT $1 with an inline raw text file format
         yaml_content = None
-        staged_file_query = f"SELECT GET_STAGED_FILE_CONTENT('@{file_path}')"
+        # The file_path is already like "DATABASE.SCHEMA.STAGE/path/to/file.yaml"
+        # The @ is prepended for stage access.
+        staged_file_access_path = f"@{file_path}"
+        
+        # Define the SQL query with inline file format
+        # Using triple quotes for the SQL query to handle internal single quotes easily.
+        query = f"""SELECT $1 
+FROM '{staged_file_access_path}' 
+(FILE_FORMAT => (TYPE => CSV, FIELD_DELIMITER => NONE, EMPTY_FIELD_AS_NULL => FALSE, SKIP_HEADER => 0, TRIM_SPACE => FALSE, NULL_IF => (\'\')));"""
         
         try:
-            result = session.sql(staged_file_query).collect()
+            result = session.sql(query).collect()
             if result and len(result) > 0 and result[0][0] is not None:
                 yaml_content = result[0][0]
             else:
-                raise ValueError(f"GET_STAGED_FILE_CONTENT returned no data or None for '{file_path}'. The file might be empty, inaccessible, or the path is incorrect.")
+                raise ValueError(f"Query with inline file format returned no data or None for '{file_path}'. The file might be empty, inaccessible, or the path is incorrect.")
         except Exception as e:
-            # Catch SnowparkSQLException specifically if needed, or general Exception
-            # Check if the error message indicates a parsing issue with the path itself
-            if "Failed to parse stage location" in str(e):
-                 raise ValueError(f"Error parsing stage location for GET_STAGED_FILE_CONTENT: '{file_path}'. Ensure the path is correct. Original error: {str(e)}")
-            raise ValueError(f"Error reading from stage with GET_STAGED_FILE_CONTENT for '{file_path}': {str(e)}")
+            if "Failed to parse stage location" in str(e) or "syntax error" in str(e).lower():
+                 raise ValueError(f"Error parsing stage location or SQL syntax for query: {query}. Ensure the path '{file_path}' is correct. Original error: {str(e)}")
+            raise ValueError(f"Error reading from stage with inline file format for '{file_path}': {str(e)}. Query: {query}")
 
         if yaml_content is None or not yaml_content.strip(): # Ensure content is not just whitespace
             raise ValueError(f"Failed to load YAML content from stage for '{file_path}'. Content is empty or could not be read.")

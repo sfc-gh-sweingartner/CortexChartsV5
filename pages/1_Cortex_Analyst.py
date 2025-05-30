@@ -461,6 +461,20 @@ def display_semantic_model_columns(model_path: str):
         st.error(f"Error loading semantic model: {str(e)}")
         import traceback
         st.sidebar.error(f"Error details: {traceback.format_exc()}")
+        
+        # Display YAML content debug info in the sidebar
+        if 'yaml_content' in locals() or 'yaml_content' in globals():
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("YAML Content Debug Information (from stage):")
+            st.sidebar.text(f"YAML content type: {type(yaml_content)}")
+            st.sidebar.text("First 500 chars:")
+            st.sidebar.code(yaml_content[:500] if yaml_content else "YAML content is None or empty", language="yaml")
+            st.sidebar.text("Last 500 chars:")
+            st.sidebar.code(yaml_content[-500:] if yaml_content and len(yaml_content) > 500 else yaml_content, language="yaml")
+        else:
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("YAML Content Debug Information:")
+            st.sidebar.text("'yaml_content' variable was not available for debugging.")
 
 
 def generate_prompt_from_selections() -> str:

@@ -17,37 +17,36 @@ You can find V3 here: https://github.com/sfc-gh-sweingartner/CortexChartsV3/tree
 4. **Dashboard** - View and manage all your visualizations
 5. **Map Designer** - Create and customize geospatial visualizations
 
-### Supported Visualizations
-1. Line Chart
-2. Bar Chart
-3. Scatter Plot
-4. Pie Chart
-5. Area Chart
-6. Bubble Chart
-7. Histogram
-8. Box Plot
-9. Heatmap
-10. Treemap
-11. Maps (Geospatial Visualization)
+## Chart Selection Logic
+
+The chart selection system follows a 3-step process to determine the best visualization based on your data structure:
+
+### Step 1: Check for Geospatial Data (Highest Priority)
+First, the system checks if the data contains latitude and longitude columns with valid coordinate ranges.
+
+### Step 2: Check for Single Row with Numeric Data
+If there's a single row of data with 1-4 numeric columns, KPI tiles are displayed.
+
+### Step 3: Evaluate Data Structure
+The system analyzes the number of date, text, and numeric columns to select the most appropriate chart type.
 
 ## Chart Rules and Requirements
 
-The following table outlines the requirements for each type of visualization:
+The following table outlines the requirements and resulting chart types for each visualization rule:
 
-| Rule | # Dates | # Dimensions | # Metrics |
-|------|---------|-------------|-----------|
-| 1    | 1       | 0           | 1         |
-| 2    | 1       | 0           | 2         |
-| 3    | 1       | 1           | 1         |
-| 4    | 1       | 2           | 1         |
-| 5    | 0       | 1           | 2         |
-| 6    | 0       | 2           | 2         |
-| 7    | 0       | 1           | 3         |
-| 8    | 0       | 2           | 3         |
-| 9    | 0       | Any         | 1         |
-| 10   | Single Row | Any      | 1 to 4    |
-| 11   | Maps always appear if there is a lat and lon column
-
+| Chart | Chart Type | # Date Cols | # Text Cols | # Numeric Cols | Special Conditions |
+|-------|------------|-------------|-------------|----------------|-------------------|
+| 1 | Line/Bar Chart by Date | 1 | 0 | 1 | - |
+| 2 | Dual Axis Line Chart | 1 | 0 | 2 | - |
+| 3 | Stacked Bar Chart by Date | 1 | 1 | 1 | - |
+| 4 | Stacked Bar with Column Selector | 1 | 2+ | 1 | - |
+| 5 | Scatter Plot | 0 | 1 | 2 | - |
+| 6 | Multi-Dimension Scatter | 0 | 2 | 2 | - |
+| 7 | Bubble Chart | 0 | 1 | 3 | - |
+| 8 | Multi-Dimension Bubble | 0 | 2+ | 3+ | - |
+| 9 | Bar Chart with Selectors | 0 | 1+ | 1 | - |
+| 10 | KPI Tiles | Any | Any | 1-4 | Single row of data |
+| 11 | Geospatial Map | Any | Any | Any | Latitude & longitude columns present |
 
 ## Configuration
 Before running the application, ensure you have:

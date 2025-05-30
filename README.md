@@ -2,11 +2,7 @@
 
 CortexCharts is a Streamlit in Snowflake app that offers an intuitive interface for creating and managing various types of charts and visualizations against Cortex Analyst. This tool is perfect for data analysts and business users who want to use Text 2 SQL to create compelling visual representations of their data.
 
-This V4 is an uplift from V3 to add prompt generation  
-
-You can find V2 here: https://github.com/sfc-gh-sweingartner/CortexCharts/tree/main
-You can find V3 here: https://github.com/sfc-gh-sweingartner/CortexChartsV3/tree/main
-
+This V4 is an uplift from V3 to add prompt generation where users can explore the semantic model and choose which columns to add to the prompt and how they would like them used.  
 
 ## Features
 
@@ -17,11 +13,11 @@ You can find V3 here: https://github.com/sfc-gh-sweingartner/CortexChartsV3/tree
 4. **Dashboard** - View and manage all your visualizations
 5. **Map Designer** - Create and customize geospatial visualizations
 
-
 ## Your Data
 You can install this on top of your existing yaml files (and thus your own data)
-To get a better experience with with charts, you can add statments like these as custom instructions to your yaml files
-custom_instructions: |-
+To get a better experience with with charts, you can add statments like these as custom instructions to your yaml files:
+
+custom_instructions: 
   1. Avoid returning date columns unless asked to show the date or break out the info by date.  For example, if you are asked to bring back something for the entire time period, do not bring back the start and end date.  
   2. If you are asked to return the location of something, bring back both the latitude and the longitude columns.
   3. All week, month, and year columns should be in a date type rather than as text.  When aggregating a date, use date_truc() which returns a date rather than date_part() or year() which returns a number
@@ -86,31 +82,15 @@ Before running the application, ensure you have:
 
 ## How to Set Up Map Access
 
-### Prerequisites
-- ACCOUNTADMIN role access in Snowflake
-- A deployed Streamlit in Snowflake (SiS) app
-- Database and schema information where your app is deployed
-
-### Step-by-Step Setup
-
 1. **Configure Network Access**:
    - Open `connectMapBoxNoKey.sql` in your editor
+   - Run each line one by one
    - When you get to the ALTER STREAMLIT statement:
      - Run the SHOW STREAMLITS command first
      - Find your app with title 'CortexChartsV4'
      - Copy its "name" value (an auto-generated ID like 'FFLFTTR_22W04CI0')
      - Replace "YOUR_STREAMLIT_APP_NAME" with this value
-
-2. **Execute the Script**:
-   - Connect to Snowflake as ACCOUNTADMIN
-   - Execute each section of the script in sequence
-   - Pay attention to the verification steps after each section
-   - Fix any errors before proceeding to the next section
-
-3. **Verify Setup**:
-   - Refresh your Streamlit app
-   - Open the Map Designer page
-   - Confirm that map backgrounds load correctly
+     - Continue to execute the rest of the script
 
 ### Troubleshooting
 If maps don't load:
@@ -131,39 +111,11 @@ https://github.com/sfc-gh-sweingartner/network_optmise
 Note the if you want to demo against synthea and / or the telco network and want a datashare, then send an email or Slack to stephen.weingartner@snowflake.com with your account details where I can do a direct share: 
 SELECT CURRENT_ORGANIZATION_NAME() || '.' || CURRENT_ACCOUNT_NAME();
 
-
 Reach out to stephen.weingartner@snowflake.com with any issues.
 
-## Semantic Model Parser (Phase 1)
+## Semantic Model Parser 
 
 The semantic model parser allows users to explore and utilize Snowflake semantic models directly within Cortex Analyst.
-
-### Features
-
-- **YAML Parser Utility**: Parses semantic model YAML files to extract:
-  - Dimensions, facts, and time dimensions
-  - Column metadata (names, descriptions, types)
-  - Relationships and joins between tables
-  - Synonyms and sample values for columns
-  
-- **Column Display Interface**:
-  - Groups columns by table
-  - Supports filtering by column type (dimensions, facts, time dimensions)
-  - Provides search functionality to find specific columns
-  - Shows tooltips with detailed column information
-  - Uses visual icons to distinguish between column types
-  
-- **Operation Configuration**:
-  - Allows selecting operations for each column (Group By, Sum, Count, etc.)
-  - Provides appropriate operation options based on column type
-  - Supports filtering with free-form text
-  - Default operations based on column type (Sum for facts, Group By for dimensions)
-  
-- **Prompt Generation**:
-  - Creates natural language prompts from selected columns and operations
-  - Includes table names in column references
-  - Places filters at the beginning of the prompt
-  - Automatically populates the chat input with the generated prompt
 
 ### Usage
 
@@ -173,11 +125,3 @@ The semantic model parser allows users to explore and utilize Snowflake semantic
 4. Click "Generate Prompt" to create a natural language query
 5. Submit the prompt to get SQL and visualization results
 
-### Implementation
-
-The implementation includes:
-
-- `utils/semantic_model_utils.py`: Core parser utility with classes for tables, columns, and relationships
-- `utils/test_semantic_model_utils.py`: Comprehensive unit tests
-- Enhanced `display_semantic_model_columns()` function in `pages/1_Cortex_Analyst.py`
-- Improved `generate_prompt_from_selections()` function for creating natural language prompts

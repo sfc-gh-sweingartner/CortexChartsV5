@@ -163,31 +163,25 @@ def display_semantic_model_columns(model_path: str):
         # Read the semantic model file using a different approach
         file_path = model_path.split("@")[-1]  # Remove @ prefix if present
         
-        # Use SELECT $1 with an inline raw text file format
+        # Use session.read.text to read the YAML file from stage
         yaml_content = None
-        # The file_path is already like "DATABASE.SCHEMA.STAGE/path/to/file.yaml"
-        # The @ is prepended for stage access.
-        staged_file_access_path = f"@{file_path}"
-        
-        # Define the SQL query with inline file format
-        # Using triple quotes for the SQL query to handle internal single quotes easily.
-        # Note: For inline file formats, options are typically specified with = instead of =>
-        # String values within options list must be appropriately quoted, e.g., NULL_IF = (\'\') for an empty string.
-        query = f"""SELECT $1 
-FROM '{staged_file_access_path}' 
-(FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = NONE, EMPTY_FIELD_AS_NULL = FALSE, SKIP_HEADER = 0, TRIM_SPACE = FALSE, NULL_IF = (\'NONE\', \'NULL\')));"""
-        # Changed NULL_IF to (\'NONE\', \'NULL\') as common practice, empty string (\'\') might be tricky in some contexts.
+        staged_file_access_path = f"@{file_path}" # e.g. @DATABASE.SCHEMA.STAGE/path/to/file.yaml
         
         try:
-            result = session.sql(query).collect()
-            if result and len(result) > 0 and result[0][0] is not None:
-                yaml_content = result[0][0]
+            # Read the file line by line into a DataFrame
+            # Snowpark typically names the single column 'value' for text files
+            df = session.read.option("compression", "NONE").text(staged_file_access_path)
+            
+            # Collect all rows. Each row is a Snowpark Row object.
+            # The first element of the row (index 0) contains the line of text.
+            lines = [row[0] for row in df.collect()]
+            
+            if lines:
+                yaml_content = "\n".join(lines)
             else:
-                raise ValueError(f"Query with inline file format returned no data or None for '{file_path}'. The file might be empty, inaccessible, or the path is incorrect.")
+                raise ValueError(f"session.read.text returned no lines for '{staged_file_access_path}'. The file might be empty or inaccessible.")
         except Exception as e:
-            if "Failed to parse stage location" in str(e) or "syntax error" in str(e).lower():
-                 raise ValueError(f"Error parsing stage location or SQL syntax for query: {query}. Ensure the path '{file_path}' is correct. Original error: {str(e)}")
-            raise ValueError(f"Error reading from stage with inline file format for '{file_path}': {str(e)}. Query: {query}")
+            raise ValueError(f"Error reading from stage with session.read.text for '{staged_file_access_path}': {str(e)}")
 
         if yaml_content is None or not yaml_content.strip(): # Ensure content is not just whitespace
             raise ValueError(f"Failed to load YAML content from stage for '{file_path}'. Content is empty or could not be read.")

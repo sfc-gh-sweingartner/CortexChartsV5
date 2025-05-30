@@ -174,7 +174,7 @@ def display_semantic_model_columns(model_path: str):
         # For simplicity, let's assume it's accessible as 'my_raw_text_format'. 
         # If it's in a specific schema, use 'YOUR_SCHEMA.my_raw_text_format'.
         # We will use the name you provided from scratch.sql, assuming it's in the session's default schema.
-        named_file_format = "my_raw_text_format" # Make sure this is correct and accessible
+        named_file_format = "CortexChartsV4.cortex_read_yaml_format" # Using fully qualified name
 
         query = f"""SELECT $1 
 FROM '{staged_file_access_path}' 

@@ -47,3 +47,15 @@ COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.DASHBOARD_NAME IS 'Name of the dashb
 COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.REPORTS IS 'Comma-separated list of report IDs included in this dashboard';
 COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.CREATED_AT IS 'Timestamp when the dashboard was created';
 COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.UPDATED_AT IS 'Timestamp when the dashboard was last updated'; 
+
+CREATE OR REPLACE FILE FORMAT cortex_read_yaml_format
+  TYPE = CSV
+  FIELD_DELIMITER = NONE
+  EMPTY_FIELD_AS_NULL = FALSE
+  TRIM_SPACE = FALSE
+  NULL_IF = (''); -- Adjust as needed
+
+-- Then use it in your SELECT
+SELECT $1
+FROM '@"SYNTHEA"."SYNTHEA"."SYNTHEA"/syntheav4.yaml'
+(FILE_FORMAT => 'cortex_read_yaml_format');

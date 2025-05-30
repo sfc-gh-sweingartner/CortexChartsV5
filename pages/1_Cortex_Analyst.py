@@ -186,6 +186,7 @@ FROM '{staged_file_access_path}'
                 # Each row in result_rows contains one line of the YAML in its first column (index 0).
                 # Filter out potential None values if a line could be null for some reason.
                 lines = [row[0] for row in result_rows if row[0] is not None]
+                st.sidebar.info(f"DEBUG: Collected {len(lines)} lines from stage for {file_path}.") # DEBUG PRINT
                 if lines:
                     yaml_content = "\n".join(lines)
                 else:

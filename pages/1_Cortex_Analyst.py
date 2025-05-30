@@ -181,11 +181,18 @@ FROM '{staged_file_access_path}'
 (FILE_FORMAT => '{named_file_format}');"""
         
         try:
-            result = session.sql(query).collect()
-            if result and len(result) > 0 and result[0][0] is not None:
-                yaml_content = result[0][0]
+            result_rows = session.sql(query).collect() # result_rows is a list of Snowpark Row objects
+            if result_rows:
+                # Each row in result_rows contains one line of the YAML in its first column (index 0).
+                # Filter out potential None values if a line could be null for some reason.
+                lines = [row[0] for row in result_rows if row[0] is not None]
+                if lines:
+                    yaml_content = "\n".join(lines)
+                else:
+                    # This case implies rows were returned but their content was None.
+                    raise ValueError(f"Query with named file format '{named_file_format}' returned rows with no valid content for '{file_path}'.")
             else:
-                raise ValueError(f"Query with named file format '{named_file_format}' returned no data or None for '{file_path}'. File might be empty, inaccessible, or path/format name incorrect.")
+                raise ValueError(f"Query with named file format '{named_file_format}' returned no data for '{file_path}'. File might be empty, inaccessible, or path/format name incorrect.")
         except Exception as e:
             if "Failed to parse stage location" in str(e) or "syntax error" in str(e).lower() or "does not exist or not authorized" in str(e).lower():
                  raise ValueError(f"Error with SQL query using named file format: {query}. Ensure path '{file_path}' and format '{named_file_format}' are correct and accessible. Original error: {str(e)}")

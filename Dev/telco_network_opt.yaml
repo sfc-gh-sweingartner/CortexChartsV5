@@ -1,4 +1,5 @@
 name: telecom
+description: 'Telecommunications network optimization data model for analyzing cell tower performance, network outages, service failures, and customer experience issues. This model contains data about telecom infrastructure including cell towers, signal strength, fault codes, network failures, call quality metrics, and regional network performance. Use this model for questions about network outages, service interruptions, cell tower issues, signal problems, fault analysis, and telecommunications infrastructure monitoring.'
 tables:
   - name: CELL_TOWER
     description: 'CELL_TOWER: This table stores information about cell towers, including their ID, location, and performance metrics, such as signal strength, data throughput, and connection establishment rates.__'
@@ -84,8 +85,24 @@ tables:
           - 25718d1d31a7d08167aa56fc5cc4a770
       - name: CAUSE_CODE_SHORT_DESCRIPTION
         synonyms:
-          - '  '
-        description: Reasons for cell tower issues.__
+          - fault_description
+          - error_description
+          - issue_description
+          - failure_description
+          - problem_description
+          - outage_description
+          - service_interruption
+          - network_issue
+          - network_fault
+          - network_failure
+          - network_outage
+          - fault
+          - error
+          - issue
+          - failure
+          - problem
+          - outage
+        description: Reasons for cell tower issues.
         expr: CAUSE_CODE_SHORT_DESCRIPTION
         data_type: TEXT
         sample_values:
@@ -840,3 +857,25 @@ custom_instructions: |-
   2. If you are asked to return the location of something, bring back both the latitude and the longitude columns.
   3. All week, month, and year columns should be in a date type rather than as text.  When aggregating a date, use date_truc() which returns a date rather than date_part() or year() which returns a number
   4. If a query includes location (e.g. lat, lon) then use ifnull to convert all null fact columns to zero
+
+verified_queries:
+  - name: "network_faults_by_location"
+    question: "show me number of faults broken out by location"
+    verified_at: 1704067200
+    verified_by: "system"
+    use_as_onboarding_question: true
+    sql: "SELECT HOME_NETWORK_COUNTRY, BID_DESCRIPTION, COUNT(*) as fault_count FROM CELL_TOWER WHERE CAUSE_CODE_SHORT_DESCRIPTION IS NOT NULL GROUP BY HOME_NETWORK_COUNTRY, BID_DESCRIPTION ORDER BY fault_count DESC"
+  
+  - name: "cell_tower_performance"
+    question: "what are the top performing cell towers"
+    verified_at: 1704067200
+    verified_by: "system"
+    use_as_onboarding_question: true
+    sql: "SELECT CELL_ID, BID_DESCRIPTION, HOME_NETWORK_COUNTRY, PM_RRC_CONN_ESTAB_SUCC_RATE FROM CELL_TOWER ORDER BY PM_RRC_CONN_ESTAB_SUCC_RATE DESC LIMIT 10"
+  
+  - name: "network_outages_analysis"
+    question: "show me network outages by service category"
+    verified_at: 1704067200
+    verified_by: "system"
+    use_as_onboarding_question: true
+    sql: "SELECT SERVICE_CATEGORY, COUNT(*) as outage_count FROM CELL_TOWER WHERE CAUSE_CODE_SHORT_DESCRIPTION IS NOT NULL GROUP BY SERVICE_CATEGORY ORDER BY outage_count DESC"

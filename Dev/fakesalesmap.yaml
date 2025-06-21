@@ -1,5 +1,5 @@
 name: fakesalesv1
-description: This semantic model joins sales to store sites and also to products to enable a retailer to analyse their sales
+description: Retail sales and product data model for analyzing sales performance, product categories, store locations, and customer purchasing patterns. This model contains sales transactions, product information, store data, and inventory details for retail analytics. Use this model for questions about sales revenue, product performance, store metrics, customer purchases, retail trends, and commercial analytics.
 tables:
   - name: DIM_FAKE_PRODUCT
     base_table:

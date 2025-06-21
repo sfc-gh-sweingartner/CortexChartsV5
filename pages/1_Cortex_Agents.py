@@ -75,7 +75,7 @@ def main():
     display_conversation()
     handle_user_inputs()
     handle_error_notifications()
-    # display_warnings()  # Commented out to hide warnings from users
+    display_warnings()  # Now enabled to show filtering tips and suggestions
 
 
 def reset_session_state():
@@ -115,17 +115,42 @@ def show_header_and_sidebar():
         st.subheader("Semantic Models")
         st.markdown("*Cortex Agents will automatically choose the most appropriate model for your query*")
         
+        # Add domain guidance
+        with st.expander("📖 Domain Guide - Click to see which model to use"):
+            st.markdown("""
+            **Healthcare/Medical Data** (syntheav5.yaml):
+            - Patient data, medical records, diagnoses, treatments
+            - Example: "show me patients with diabetes"
+            
+            **Telecommunications/Network** (telco_network_opt.yaml):
+            - Cell towers, network faults, signal quality, outages
+            - Example: "show me number of faults broken out by location"
+            
+            **Retail/Sales** (fakesalesmap.yaml):
+            - Product sales, store performance, inventory
+            - Example: "show me top selling products by category"
+            """)
+        
         # Show available models with checkboxes
         if "selected_semantic_models" not in st.session_state:
             st.session_state.selected_semantic_models = AVAILABLE_SEMANTIC_MODELS_PATHS.copy()  # Default: all selected
         
         selected_models = []
+        
+        # Create more descriptive labels for the checkboxes
+        model_labels = {
+            "SYNTHEA.SYNTHEA.SYNTHEA/syntheav5.yaml": "🏥 Healthcare/Medical Data",
+            "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml": "🛒 Retail/Sales Data", 
+            "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml": "📡 Telecommunications/Network Data"
+        }
+        
         for model_path in AVAILABLE_SEMANTIC_MODELS_PATHS:
-            model_name = model_path.split("/")[-1]
+            model_label = model_labels.get(model_path, model_path.split("/")[-1])
             if st.checkbox(
-                model_name, 
+                model_label, 
                 value=model_path in st.session_state.selected_semantic_models,
-                key=f"model_checkbox_{model_path}"
+                key=f"model_checkbox_{model_path}",
+                help=f"Enable {model_path.split('/')[-1]} for domain-specific queries"
             ):
                 selected_models.append(model_path)
         
@@ -560,6 +585,21 @@ def process_user_input(prompt: str):
     # Clear previous warnings at the start of a new request
     st.session_state.warnings = []
 
+    # Suggest optimal semantic models based on query content
+    suggested_models = suggest_semantic_models(prompt)
+    
+    # If suggested models are different from current selection, notify user
+    if set(suggested_models) != set(st.session_state.selected_semantic_models):
+        st.session_state.warnings.append(f"💡 **Tip**: Based on your query, you might get better results by enabling these models: {', '.join([model.split('/')[-1] for model in suggested_models])}")
+    
+    # Temporarily use suggested models for this query if they're different and more specific
+    original_models = st.session_state.selected_semantic_models.copy()
+    model_filtering_applied = False
+    if len(suggested_models) < len(st.session_state.selected_semantic_models):
+        st.session_state.selected_semantic_models = suggested_models
+        st.session_state.warnings.append(f"🔧 **Smart Filtering**: Using {len(suggested_models)} most relevant model(s) for better accuracy.")
+        model_filtering_applied = True
+
     # Create a new message, append to history and display immediately
     new_user_message = {
         "role": "user",
@@ -625,6 +665,11 @@ def process_user_input(prompt: str):
                 st.session_state.warnings = response["warnings"]
 
             st.session_state.messages.append(assistant_message)
+            
+            # Restore original model selection after processing
+            if model_filtering_applied:
+                st.session_state.selected_semantic_models = original_models
+                
             st.rerun()
 
 
@@ -632,9 +677,17 @@ def display_warnings():
     """
     Display warnings to the user.
     """
-    # warnings = st.session_state.warnings
-    # for warning in warnings:
-    #     st.warning(warning["message"], icon="⚠️")
+    if st.session_state.warnings:
+        for warning in st.session_state.warnings:
+            if isinstance(warning, str):
+                if warning.startswith("💡"):
+                    st.info(warning, icon="💡")
+                elif warning.startswith("🔧"):
+                    st.success(warning, icon="🔧")
+                else:
+                    st.warning(warning, icon="⚠️")
+            else:
+                st.warning(warning.get("message", str(warning)), icon="⚠️")
 
 
 def parse_cortex_agents_response(response) -> Optional[Dict]:
@@ -1522,6 +1575,58 @@ def submit_feedback(
         ```
         """
     return err_msg
+
+
+def suggest_semantic_models(query: str) -> List[str]:
+    """
+    Suggest which semantic models might be most relevant for a given query.
+    
+    Args:
+        query: User's natural language query
+        
+    Returns:
+        List of suggested semantic model paths
+    """
+    query_lower = query.lower()
+    suggestions = []
+    
+    # Healthcare/Medical keywords
+    healthcare_keywords = [
+        'patient', 'medical', 'health', 'diagnosis', 'treatment', 'medication', 
+        'allergy', 'procedure', 'insurance', 'claim', 'provider', 'hospital',
+        'clinical', 'care', 'disease', 'condition', 'symptom'
+    ]
+    
+    # Telecommunications/Network keywords  
+    telecom_keywords = [
+        'cell', 'tower', 'network', 'signal', 'fault', 'outage', 'failure',
+        'connection', 'coverage', 'telecommunications', 'telecom', 'mobile',
+        'wireless', 'base station', 'antenna', 'interference', 'quality',
+        'latency', 'throughput', 'bandwidth', 'service interruption'
+    ]
+    
+    # Retail/Sales keywords
+    retail_keywords = [
+        'sales', 'product', 'store', 'revenue', 'customer', 'purchase',
+        'inventory', 'retail', 'brand', 'category', 'vendor', 'department',
+        'transaction', 'order', 'merchandise', 'commerce', 'price'
+    ]
+    
+    # Check for keyword matches
+    if any(keyword in query_lower for keyword in healthcare_keywords):
+        suggestions.append("SYNTHEA.SYNTHEA.SYNTHEA/syntheav5.yaml")
+    
+    if any(keyword in query_lower for keyword in telecom_keywords):
+        suggestions.append("TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml")
+        
+    if any(keyword in query_lower for keyword in retail_keywords):
+        suggestions.append("QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml")
+    
+    # If no specific keywords found, return all models
+    if not suggestions:
+        suggestions = AVAILABLE_SEMANTIC_MODELS_PATHS.copy()
+    
+    return suggestions
 
 
 if __name__ == "__main__":

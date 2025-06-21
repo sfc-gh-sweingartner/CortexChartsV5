@@ -1,8 +1,8 @@
--- Create and use the CortexChartsV4 database and schema
-CREATE DATABASE IF NOT EXISTS CortexChartsV4;
-CREATE SCHEMA IF NOT EXISTS CortexChartsV4.CortexChartsV4;
-USE DATABASE CortexChartsV4;
-USE SCHEMA CortexChartsV4;
+-- Create and use the CortexChartsV5 database and schema
+CREATE DATABASE IF NOT EXISTS CortexChartsV5;
+CREATE SCHEMA IF NOT EXISTS CortexChartsV5.CortexChartsV5;
+USE DATABASE CortexChartsV5;
+USE SCHEMA CortexChartsV5;
 
 -- Create Reports Table for Snowflake Interactive Charts
 CREATE OR REPLACE TABLE  CORTEX_ANALYST_REPORTS (
@@ -48,7 +48,7 @@ COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.REPORTS IS 'Comma-separated list of 
 COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.CREATED_AT IS 'Timestamp when the dashboard was created';
 COMMENT ON COLUMN CORTEX_ANALYST_DASHBOARDS.UPDATED_AT IS 'Timestamp when the dashboard was last updated'; 
 
-CREATE OR REPLACE FILE FORMAT cortex_read_yaml_format
+CREATE OR REPLACE FILE FORMAT CortexChartsV5.CortexChartsV5.cortex_read_yaml_format
   TYPE = CSV
   FIELD_DELIMITER = NONE
   EMPTY_FIELD_AS_NULL = FALSE

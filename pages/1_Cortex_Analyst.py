@@ -47,7 +47,7 @@ st.set_page_config(
 # List of available semantic model paths in the format: <DATABASE>.<SCHEMA>.<STAGE>/<FILE-NAME>
 # Each path points to a YAML file defining a semantic model
 AVAILABLE_SEMANTIC_MODELS_PATHS = [
-    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav4.yaml",
+    "SYNTHEA.SYNTHEA.SYNTHEA/syntheav5.yaml",
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
 ]
@@ -193,7 +193,7 @@ def display_semantic_model_columns(model_path: str):
         # For simplicity, let's assume it's accessible as 'my_raw_text_format'. 
         # If it's in a specific schema, use 'YOUR_SCHEMA.my_raw_text_format'.
         # We will use the name you provided from scratch.sql, assuming it's in the session's default schema.
-        named_file_format = "CortexChartsV4.cortex_read_yaml_format" # Using fully qualified name
+        named_file_format = "CortexChartsV5.cortex_read_yaml_format" # Using fully qualified name
 
         query = f"""SELECT $1 
 FROM '{staged_file_access_path}' 

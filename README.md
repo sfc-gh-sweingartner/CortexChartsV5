@@ -1,8 +1,126 @@
-# CortexCharts V4
+# CortexCharts V5
 
-CortexCharts is a Streamlit in Snowflake app that offers an intuitive interface for creating and managing various types of charts and visualizations against Cortex Analyst. This tool is perfect for data analysts and business users who want to use Text 2 SQL to create compelling visual representations of their data.
+CortexCharts is a Streamlit in Snowflake application that allows users to interact with their data using natural language powered by Snowflake's Cortex Agents. Users can ask questions about their data, generate SQL queries, create visualizations, and build dashboards.
 
-This V4 is an uplift from V3 to add prompt generation where users can explore the semantic model and choose which columns to add to the prompt and how they would like them used.  
+This V5 is an uplift from V4 to use Cortex Agents instead of Cortex Analyst, adding enhanced multi-turn conversations, multi-semantic model support, and advanced AI reasoning capabilities.
+
+## Key Features
+
+- **Natural Language to SQL**: Ask questions about your data in plain English
+- **Cortex Agents Integration**: Advanced AI reasoning with multi-turn conversation support
+- **Multiple Semantic Models**: Automatic selection from multiple data models
+- **Interactive Visualizations**: 11 different chart types including geospatial maps
+- **Report Designer**: Customize and save reports with interactive charts
+- **Dashboard Builder**: Create multi-report dashboards
+- **Map Designer**: Specialized interface for geospatial data visualization
+
+## Architecture
+
+The application consists of four main pages:
+
+1. **Cortex Agents** (`pages/1_Cortex_Analyst.py`): Main interface for natural language queries
+2. **Report Designer** (`pages/2_Report_Designer.py`): Customize and save reports
+3. **Dashboard** (`pages/3_Dashboard.py`): Create and manage dashboards
+4. **Map Designer** (`pages/4_Map_Designer.py`): Design geospatial visualizations
+
+## Supported Chart Types
+
+The application supports 11 different visualization types:
+
+1. **Line/Bar Chart by Date** - Time series data with single metric
+2. **Dual Axis Line Chart** - Time series with two metrics
+3. **Stacked Bar Chart by Date** - Time series with categories
+4. **Stacked Bar with Column Selector** - Interactive category selection
+5. **Scatter Plot** - Two numeric dimensions with categories
+6. **Multi-Dimension Scatter** - Advanced scatter with multiple categories
+7. **Bubble Chart** - Three numeric dimensions with categories
+8. **Multi-Dimension Bubble** - Complex bubble charts with multiple categories
+9. **Bar Chart with Selectors** - Interactive bar charts
+10. **KPI Tiles** - Single-row metric displays
+11. **Geospatial Map** - 3D hexagon maps for location data
+
+## Semantic Models
+
+The application works with YAML semantic models that define:
+- Table relationships and joins
+- Column types (dimensions, facts, time dimensions)
+- Business definitions and descriptions
+- Sample data and validation rules
+
+## Installation and Setup
+
+### Prerequisites
+
+- Snowflake account with Cortex Agents access
+- Streamlit in Snowflake enabled
+- Appropriate privileges to create databases, schemas, and tables
+
+### Setup Steps
+
+1. **Database Setup**: 
+   - Run the `create_reports_table.sql` script which will create the CortexChartsV5 database and schema, and create the two tables that hold report designs
+
+2. **Deploy Streamlit App**:
+   - Create a new Streamlit in Snowflake app
+   - In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV5
+   - Set the main file to `Home.py`
+   - Deploy it into the CortexChartsV5 database and CortexChartsV5 schema, and use any warehouse
+   - Choose the database CortexChartsV5 and schema CortexChartsV5
+   - Name it CortexChartsV5 (You can rename after everything is working)
+
+3. **Configure Semantic Models**:
+   - Upload your semantic model YAML files to appropriate Snowflake stages
+   - Update the `AVAILABLE_SEMANTIC_MODELS_PATHS` in `pages/1_Cortex_Analyst.py` with your model paths
+
+4. **Test the Application**:
+   - Find your app with title 'CortexChartsV5'
+   - Navigate through the different pages to ensure functionality
+   - Test natural language queries with your semantic models
+
+## Usage
+
+### Basic Workflow
+
+1. **Ask Questions**: Use natural language to query your data
+2. **Review Results**: See generated SQL, data results, and automatic visualizations
+3. **Customize**: Use Report Designer to modify charts and SQL
+4. **Save Reports**: Store customized reports for reuse
+5. **Build Dashboards**: Combine multiple reports into dashboards
+
+### Advanced Features
+
+- **Multi-Model Queries**: Select multiple semantic models for comprehensive analysis
+- **Conversation Context**: Build on previous questions with follow-up queries
+- **Interactive Charts**: Use selectors and filters in visualizations
+- **Geospatial Analysis**: Create 3D maps for location-based data
+
+## File Structure
+
+```
+CortexChartsV5/
+├── Home.py                     # Main application entry point
+├── pages/
+│   ├── 1_Cortex_Analyst.py    # Cortex Agents interface
+│   ├── 2_Report_Designer.py   # Report customization
+│   ├── 3_Dashboard.py         # Dashboard management
+│   └── 4_Map_Designer.py      # Geospatial visualization
+├── utils/
+│   ├── chart_utils.py         # Chart creation functions
+│   ├── semantic_model_utils.py # YAML parsing utilities
+│   └── test_semantic_model_utils.py # Unit tests
+├── Dev/                       # Sample semantic models
+├── docs/                      # Documentation
+├── create_reports_table.sql   # Database setup
+└── README.md                  # This file
+```
+
+## Contributing
+
+This project is part of Snowflake's Cortex AI platform demonstration. For questions or issues, please refer to the Snowflake documentation or contact your Snowflake representative.
+
+## License
+
+This project is provided as-is for demonstration purposes as part of Snowflake's Cortex platform.
 
 ## Features
 
@@ -62,18 +180,18 @@ Before running the application, ensure you have:
 
 ## How to Deploy the App
 1. In Snowsight, open a SQL worksheet and run this with ACCOUNTADMIN to allow your env to see this GIT project: CREATE OR REPLACE API INTEGRATION git_sweingartner API_PROVIDER = git_https_api API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-sweingartner') ENABLED = TRUE;
-2. Run the create_reports_table.sql script which will create the CortexChartsV4 database and schema, and create the two tables that hold report designs
+2. Run the create_reports_table.sql script which will create the CortexChartsV5 database and schema, and create the two tables that hold report designs
 3. You need to make SiS UI aware of the new DB.  Refreshing the dbs via the UI doesn't work.  So, refresh your entire browser (e.g. log out and in again or hit Control - Shift - R on a Mac )
 4. click Projects > Streamlit
 5. Tick the drop downbox next to the blue "+ Streamlit App" and select "create from repository"
 6. Click "Create Git Repository"
-7. In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV4
+7. In the Repository URL field, enter: https://github.com/sfc-gh-sweingartner/CortexChartsV5
 8. You can leave the repository name as the default
 9. In the API Integration drop down box, choose GIT_SWEINGARTNER
-10. Deploy it into the CortexChartsV4 database and CortexChartsV4 schema, and use any WH
+10. Deploy it into the CortexChartsV5 database and CortexChartsV5 schema, and use any WH
 11. Click Home.py then "Select File"
-12. Choose the db CortexChartsV4 and schema CortexChartsV4
-13. Name it CortexChartsV4 (You can rename after everything is working)
+12. Choose the db CortexChartsV5 and schema CortexChartsV5
+13. Name it CortexChartsV5 (You can rename after everything is working)
 14. Choose any warehouse you want (maybe small or above) and click create
 15. Open the code editor panel and edit which yaml file(s) (i.e. semantic model) that your solution is going to use.  You will find the line to alter at line 50 of the /pages/1_Cortex_Analyst.py file
 16. Add the following packages via the drop down box above the code: altair, branca, h3-py, matplotlib-base, numpy, pandas, plotly, pydeck, scipy 
@@ -87,7 +205,7 @@ Before running the application, ensure you have:
    - Run each line one by one
    - When you get to the ALTER STREAMLIT statement:
      - Run the SHOW STREAMLITS command first
-     - Find your app with title 'CortexChartsV4'
+     - Find your app with title 'CortexChartsV5'
      - Copy its "name" value (an auto-generated ID like 'FFLFTTR_22W04CI0')
      - Replace "YOUR_STREAMLIT_APP_NAME" with this value
      - Continue to execute the rest of the script

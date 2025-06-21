@@ -9,9 +9,9 @@
 ---------------------------------------------------------------------------
 SET APP_CREATOR_ROLE = 'ACCOUNTADMIN';
 -- No need for Mapbox API key anymore
-SET DB_NAME = 'CortexChartsV4';  
-SET SCHEMA_NAME = 'CortexChartsV4';    
-SET APP_NAME = 'CortexChartsV4';   
+SET DB_NAME = 'CortexChartsV5';
+SET SCHEMA_NAME = 'CortexChartsV5';
+SET APP_NAME = 'CortexChartsV5';
 
 Use DATABASE  IDENTIFIER($DB_NAME);
 Use SCHEMA  IDENTIFIER($SCHEMA_NAME);

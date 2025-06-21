@@ -1,4 +1,4 @@
-name: syntheav4
+name: syntheav5
 description: This semantic data model contains comprehensive healthcare data including patient demographics, medical encounters, diagnoses, medications, procedures, insurance claims and providers. You can analyze patient health outcomes, track medical costs and insurance coverage, examine provider performance, and study population health trends. For example, you could look at average healthcare costs by demographic groups, analyze common diagnoses and treatments, track insurance claim patterns, or study the relationships between conditions and procedures. The data spans clinical, financial and operational aspects of healthcare delivery.
 tables:
   - name: ALLERGIES

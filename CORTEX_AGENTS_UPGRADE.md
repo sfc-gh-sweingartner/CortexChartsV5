@@ -43,7 +43,7 @@ This document outlines the completed Phase 1 upgrade from Cortex Analyst to Cort
 - **Default Behavior**: All available models selected by default
 - **Smart Selection**: Cortex Agents automatically chooses the most appropriate model for each query
 - **Available Models**:
-  - `syntheav4.yaml` (Healthcare/Synthea data)
+  - `syntheav5.yaml` (Healthcare/Synthea data)
   - `fakesalesmap.yaml` (Sales/Retail data)
   - `telco_network_opt.yaml` (Telecommunications data)
 

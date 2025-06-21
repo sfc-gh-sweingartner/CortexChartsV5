@@ -810,32 +810,32 @@ def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
         }
     
     # Convert messages to the format expected by Cortex Agents API
-    # The API expects simple text messages, not complex content structures
+    # Filter out complex content types (SQL, charts) that cause API errors
     api_messages = []
     for msg in messages:
         if msg["role"] == "user":
-            # Extract text content from user messages
-            text_content = ""
+            # For user messages, keep only text content
+            text_content_items = []
             for content_item in msg["content"]:
                 if content_item.get("type") == "text":
-                    text_content += content_item.get("text", "")
+                    text_content_items.append(content_item)
             
-            if text_content.strip():
+            if text_content_items:
                 api_messages.append({
                     "role": "user",
-                    "content": text_content
+                    "content": text_content_items
                 })
         elif msg["role"] in ["assistant", "analyst"]:
-            # Extract text content from assistant messages, ignoring SQL/chart content
-            text_content = ""
+            # For assistant messages, keep only text content, filter out SQL/chart content
+            text_content_items = []
             for content_item in msg["content"]:
                 if content_item.get("type") == "text":
-                    text_content += content_item.get("text", "")
+                    text_content_items.append(content_item)
             
-            if text_content.strip():
+            if text_content_items:
                 api_messages.append({
                     "role": "assistant", 
-                    "content": text_content
+                    "content": text_content_items
                 })
     
     # Prepare the request body for Cortex Agents API

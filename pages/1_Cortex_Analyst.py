@@ -579,54 +579,74 @@ def process_user_input(prompt: str):
             if error_msg is None:
                 # Handle Cortex Agents response format
                 # The response structure might be different from Cortex Analyst
-                if "message" in response and "content" in response["message"]:
-                    # Standard Cortex Analyst format (might still be used by Agents)
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": response["message"]["content"],
-                        "request_id": response.get("request_id", "unknown"),
-                    }
-                elif "content" in response and isinstance(response["content"], list):
-                    # Direct content format
-                    assistant_message = {
-                        "role": "assistant", 
-                        "content": response["content"],
-                        "request_id": response.get("request_id", "unknown"),
-                    }
-                elif "choices" in response and len(response["choices"]) > 0:
-                    # OpenAI-style format that Agents might use
-                    choice = response["choices"][0]
-                    if "message" in choice:
+                # First check if response is a dictionary
+                if isinstance(response, dict):
+                    if "message" in response and "content" in response["message"]:
+                        # Standard Cortex Analyst format (might still be used by Agents)
                         assistant_message = {
                             "role": "assistant",
-                            "content": choice["message"].get("content", []),
-                            "request_id": response.get("id", "unknown"),
+                            "content": response["message"]["content"],
+                            "request_id": response.get("request_id", "unknown"),
                         }
+                    elif "content" in response and isinstance(response["content"], list):
+                        # Direct content format
+                        assistant_message = {
+                            "role": "assistant", 
+                            "content": response["content"],
+                            "request_id": response.get("request_id", "unknown"),
+                        }
+                    elif "choices" in response and len(response["choices"]) > 0:
+                        # OpenAI-style format that Agents might use
+                        choice = response["choices"][0]
+                        if "message" in choice:
+                            assistant_message = {
+                                "role": "assistant",
+                                "content": choice["message"].get("content", []),
+                                "request_id": response.get("id", "unknown"),
+                            }
+                        else:
+                            # Fallback - try to extract content from the choice
+                            assistant_message = {
+                                "role": "assistant",
+                                "content": [{"type": "text", "text": str(choice)}],
+                                "request_id": response.get("id", "unknown"),
+                            }
                     else:
-                        # Fallback - try to extract content from the choice
+                        # Fallback for unexpected format
                         assistant_message = {
                             "role": "assistant",
-                            "content": [{"type": "text", "text": str(choice)}],
-                            "request_id": response.get("id", "unknown"),
+                            "content": [{"type": "text", "text": f"Received response in unexpected format:\n\n{json.dumps(response, indent=2)}"}],
+                            "request_id": response.get("request_id", response.get("id", "unknown")),
                         }
-                else:
-                    # Fallback for unexpected format
+                elif isinstance(response, list):
+                    # Handle case where response is a list (possibly streaming format)
                     assistant_message = {
                         "role": "assistant",
-                        "content": [{"type": "text", "text": f"Received response in unexpected format:\n\n{json.dumps(response, indent=2)}"}],
-                        "request_id": response.get("request_id", response.get("id", "unknown")),
+                        "content": [{"type": "text", "text": f"Received list response:\n\n{json.dumps(response, indent=2)}"}],
+                        "request_id": "unknown",
+                    }
+                else:
+                    # Handle any other unexpected type
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": f"Received response of type {type(response).__name__}:\n\n{str(response)}"}],
+                        "request_id": "unknown",
                     }
             else:
-                # Handle error case
+                # Handle error case - ensure response is a dict before calling .get()
+                request_id = "unknown"
+                if isinstance(response, dict):
+                    request_id = response.get("request_id", response.get("id", "unknown"))
+                
                 assistant_message = {
                     "role": "assistant",
                     "content": [{"type": "text", "text": error_msg}],
-                    "request_id": response.get("request_id", response.get("id", "unknown")),
+                    "request_id": request_id,
                 }
                 st.session_state["fire_API_error_notify"] = True
 
             # Store warnings if they exist in the response
-            if "warnings" in response:
+            if isinstance(response, dict) and "warnings" in response:
                 st.session_state.warnings = response["warnings"]
 
             st.session_state.messages.append(assistant_message)

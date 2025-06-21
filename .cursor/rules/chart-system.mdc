@@ -17,17 +17,35 @@ First, the system checks if the data contains latitude and longitude columns:
 ### Step 2: Try All Other Chart Types Based on Column Structure
 If no geospatial visualization was created or it failed, the system evaluates the data structure to find the most appropriate chart type:
 
-- **Chart 1**: Single date column (1), single numeric column (1) → Line/Bar Chart by Date
-- **Chart 2**: Single date column (1), two numeric columns (2) → Dual Axis Line Chart
-- **Chart 3**: Single date column (1), one text column (1), one numeric column (1) → Stacked Bar Chart by Date
-- **Chart 4**: Single date column (1), multiple text columns (2+), one numeric column (1) → Stacked Bar with Column Selector
-- **Chart 5**: No date columns (0), one text column (1), two numeric columns (2) → Scatter Plot
-- **Chart 6**: No date columns (0), two text columns (2), two numeric columns (2) → Multi-Dimension Scatter
-- **Chart 7**: No date columns (0), one text column (1), three numeric columns (3) → Bubble Chart
-- **Chart 8**: No date columns (0), multiple text columns (2+), multiple numeric columns (3+) → Multi-Dimension Bubble
-- **Chart 9**: No date columns (0), Any text columns (1+), one numeric column (1) → Bar Chart with Selectors
-- **Chart 10**: Single row with 1+ numeric columns → KPI Tiles
-- **Chart 11**: Data that has a latitude and longitude.  Produce a map and ignore all the other rules.  
+
+
+When SQL is run by the prompt and data is returned, you will inspect the results and count how many columns are text vs date vs numeric fields.  
+
+Follow the chart logic below starting from the top. If you meet the requirements and can produce a chart, then you can break and don't need to check further rules:
+Check #1. Is there a latitude and longitude column?  (Y/N)
+    If Y, produce  **Chart 11**: - Geospatial Map 
+    If N, check further rules
+
+Check #2. Is there a single row of data with 1 to four numeric columns?  (Y/N)
+    If Y, produce  **Chart 10**: KPI Tiles
+    If N, check further rules
+
+Check #3 Is there exactly one date column? (Y/N)
+    If Y (i.e. there is a date column) then: 
+      a) If there is a single numeric column (1), produce **Chart 1**: Line/Bar Chart by Date
+      b) If there is a two numeric columns (2) - **Chart 2**: Dual Axis Line Chart
+      c) If there is a single numeric column (1) and one text columns, produce **Chart 3**: → Stacked Bar Chart by Date
+      d)If there are multiple text columns (2+), one numeric column (1), produce  **Chart 4**: → Stacked Bar with Column Selector
+      e) For other combinaations of text and numeric counts, inform the user no chart can be produced and exit logic
+    If N (i.e. there is no date column) then:
+      a) If there is one text column (1) and two numeric columns (2), produce  **Chart 5**: → Scatter Plot
+      b) If there are two text columns (2) and two numeric columns (2), produce  **Chart 6**:   → Multi-Dimension Scatter
+      c) If there is one text column (1) and three numeric columns (3), produce **Chart 7**:  → Bubble Chart
+      d) If there are multiple text columns (2+) and multiple numeric columns (3+), produce **Chart 8**:  → Multi-Dimension Bubble
+      e) If there are any number of text columns (1+) and one numeric column (1), produce **Chart 9**:  → Bar Chart with Selectors
+      f) - For other combinaations of text and numeric counts, inform the user no chart can be produced
+End of Logic - if a chart did not fall into any of the rules above then inform the user no chart can be produced
+
 
 ### Step 3: Display the Appropriate Visualization
 Once a chart is created successfully, the system:

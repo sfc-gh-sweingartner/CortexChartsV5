@@ -809,10 +809,39 @@ def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
             "semantic_model_file": f"@{model_path}"
         }
     
+    # Convert messages to the format expected by Cortex Agents API
+    # The API expects simple text messages, not complex content structures
+    api_messages = []
+    for msg in messages:
+        if msg["role"] == "user":
+            # Extract text content from user messages
+            text_content = ""
+            for content_item in msg["content"]:
+                if content_item.get("type") == "text":
+                    text_content += content_item.get("text", "")
+            
+            if text_content.strip():
+                api_messages.append({
+                    "role": "user",
+                    "content": text_content
+                })
+        elif msg["role"] in ["assistant", "analyst"]:
+            # Extract text content from assistant messages, ignoring SQL/chart content
+            text_content = ""
+            for content_item in msg["content"]:
+                if content_item.get("type") == "text":
+                    text_content += content_item.get("text", "")
+            
+            if text_content.strip():
+                api_messages.append({
+                    "role": "assistant", 
+                    "content": text_content
+                })
+    
     # Prepare the request body for Cortex Agents API
     request_body = {
         "model": DEFAULT_AGENT_MODEL,
-        "messages": messages,
+        "messages": api_messages,
         "tools": tools,
         "tool_resources": tool_resources
     }

@@ -1006,11 +1006,46 @@ def display_vega_chart(chart_spec: str, message_index: int) -> None:
                 key=f"open_designer_chart_{message_index}",
                 help="Customize this chart in the Report Designer"
             ):
-                # Store the chart data for the Report Designer
-                st.session_state.chart_data = {
-                    "chart_spec": chart_dict,
-                    "chart_type": "vega_lite"
+                if "report_transfer" not in st.session_state:
+                    st.session_state.report_transfer = {}
+                
+                # Extract SQL and prompt from message history
+                sql_statement = ""
+                prompt = ""
+                for message in st.session_state.messages:
+                    if message["role"] in ["analyst", "assistant"] and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
+                        for item in message["content"]:
+                            if item["type"] == "sql":
+                                sql_statement = item["statement"]
+                    elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
+                        for item in message["content"]:
+                            if item["type"] == "text":
+                                prompt = item["text"]
+                
+                # Create a simple chart code that displays the Vega-Lite chart
+                chart_code = f"""import streamlit as st
+import json
+
+def create_chart(df):
+    # Vega-Lite chart specification from Cortex Agents
+    chart_spec = {json.dumps(chart_dict, indent=2)}
+    
+    # Display the chart
+    st.vega_lite_chart(chart_spec, use_container_width=True)
+    return None  # Vega charts are displayed directly, not returned
+"""
+                
+                # Store data for Report Designer with SQL included
+                st.session_state.report_transfer = {
+                    "df": None,  # Will be re-executed from SQL
+                    "sql": sql_statement,
+                    "prompt": prompt,
+                    "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "redirect": True,
+                    "chart_metadata": {"chart_type": "vega_lite", "chart_spec": chart_dict},
+                    "chart_code": chart_code
                 }
+                
                 st.switch_page("pages/2_Report_Designer.py")
                 
     except json.JSONDecodeError as e:

@@ -1064,7 +1064,7 @@ def display_sql_query(
             st.info("SQL execution is disabled. Switch to 'Run' mode to execute queries.")
             
     if request_id:
-        display_feedback_section(request_id)
+        display_feedback_section(request_id, message_index)
 
 
 def display_vega_chart(chart_spec: str, message_index: int) -> None:
@@ -1540,10 +1540,12 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
         st.error(traceback.format_exc())
 
 
-def display_feedback_section(request_id: str):
+def display_feedback_section(request_id: str, message_index: int):
     with st.popover("📝 Query Feedback"):
+        # Create unique form key using both request_id and message_index
+        form_key = f"feedback_form_{request_id}_{message_index}"
         if request_id not in st.session_state.form_submitted:
-            with st.form(f"feedback_form_{request_id}", clear_on_submit=True):
+            with st.form(form_key, clear_on_submit=True):
                 positive = st.radio(
                     "Rate the generated SQL", options=["👍", "👎"], horizontal=True
                 )

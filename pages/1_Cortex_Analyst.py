@@ -578,60 +578,35 @@ def process_user_input(prompt: str):
             
             if error_msg is None:
                 # Handle Cortex Agents response format
-                # The response structure might be different from Cortex Analyst
-                # First check if response is a dictionary
-                if isinstance(response, dict):
-                    if "message" in response and "content" in response["message"]:
-                        # Standard Cortex Analyst format (might still be used by Agents)
-                        assistant_message = {
-                            "role": "assistant",
-                            "content": response["message"]["content"],
-                            "request_id": response.get("request_id", "unknown"),
-                        }
-                    elif "content" in response and isinstance(response["content"], list):
-                        # Direct content format
-                        assistant_message = {
-                            "role": "assistant", 
-                            "content": response["content"],
-                            "request_id": response.get("request_id", "unknown"),
-                        }
-                    elif "choices" in response and len(response["choices"]) > 0:
-                        # OpenAI-style format that Agents might use
-                        choice = response["choices"][0]
-                        if "message" in choice:
-                            assistant_message = {
-                                "role": "assistant",
-                                "content": choice["message"].get("content", []),
-                                "request_id": response.get("id", "unknown"),
-                            }
-                        else:
-                            # Fallback - try to extract content from the choice
-                            assistant_message = {
-                                "role": "assistant",
-                                "content": [{"type": "text", "text": str(choice)}],
-                                "request_id": response.get("id", "unknown"),
-                            }
-                    else:
-                        # Fallback for unexpected format
+                # Parse the streaming events from Cortex Agents
+                parsed_content = parse_cortex_agents_response(response)
+                
+                if parsed_content:
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": parsed_content["content"],
+                        "request_id": parsed_content.get("request_id", "unknown"),
+                    }
+                else:
+                    # Fallback for unexpected format
+                    if isinstance(response, dict):
                         assistant_message = {
                             "role": "assistant",
                             "content": [{"type": "text", "text": f"Received response in unexpected format:\n\n{json.dumps(response, indent=2)}"}],
                             "request_id": response.get("request_id", response.get("id", "unknown")),
                         }
-                elif isinstance(response, list):
-                    # Handle case where response is a list (possibly streaming format)
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": [{"type": "text", "text": f"Received list response:\n\n{json.dumps(response, indent=2)}"}],
-                        "request_id": "unknown",
-                    }
-                else:
-                    # Handle any other unexpected type
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": [{"type": "text", "text": f"Received response of type {type(response).__name__}:\n\n{str(response)}"}],
-                        "request_id": "unknown",
-                    }
+                    elif isinstance(response, list):
+                        assistant_message = {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": f"Debug - Raw streaming response:\n\n{json.dumps(response, indent=2)}"}],
+                            "request_id": "unknown",
+                        }
+                    else:
+                        assistant_message = {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": f"Received response of type {type(response).__name__}:\n\n{str(response)}"}],
+                            "request_id": "unknown",
+                        }
             else:
                 # Handle error case - ensure response is a dict before calling .get()
                 request_id = "unknown"
@@ -660,6 +635,90 @@ def display_warnings():
     # warnings = st.session_state.warnings
     # for warning in warnings:
     #     st.warning(warning["message"], icon="⚠️")
+
+
+def parse_cortex_agents_response(response) -> Optional[Dict]:
+    """
+    Parse Cortex Agents streaming response format.
+    
+    Args:
+        response: The response from Cortex Agents API (list of events)
+        
+    Returns:
+        Dict with parsed content or None if parsing fails
+    """
+    if not isinstance(response, list):
+        return None
+    
+    content_items = []
+    request_id = "unknown"
+    
+    for event in response:
+        if not isinstance(event, dict) or "event" not in event:
+            continue
+            
+        event_type = event["event"]
+        
+        if event_type == "message.delta" and "data" in event:
+            data = event["data"]
+            
+            # Extract request ID
+            if "id" in data:
+                request_id = data["id"]
+            
+            # Process delta content
+            if "delta" in data and "content" in data["delta"]:
+                delta_content = data["delta"]["content"]
+                
+                for item in delta_content:
+                    if item.get("type") == "tool_results":
+                        # Handle tool results (like SQL from cortex_analyst_text_to_sql)
+                        tool_results = item.get("tool_results", {})
+                        if tool_results.get("status") == "success":
+                            tool_content = tool_results.get("content", [])
+                            
+                            for tool_item in tool_content:
+                                if tool_item.get("type") == "json":
+                                    json_data = tool_item.get("json", {})
+                                    
+                                    # Extract SQL and text
+                                    if "sql" in json_data:
+                                        content_items.append({
+                                            "type": "sql",
+                                            "statement": json_data["sql"],
+                                            "confidence": {
+                                                "verified_query_used": json_data.get("verified_query_used", False)
+                                            }
+                                        })
+                                    
+                                    if "text" in json_data:
+                                        content_items.append({
+                                            "type": "text",
+                                            "text": json_data["text"]
+                                        })
+                    
+                    elif item.get("type") == "text":
+                        # Handle direct text responses
+                        content_items.append({
+                            "type": "text",
+                            "text": item.get("text", "")
+                        })
+                    
+                    elif item.get("type") == "chart":
+                        # Handle chart responses
+                        chart_data = item.get("chart", {})
+                        content_items.append({
+                            "type": "chart",
+                            "chart_spec": chart_data.get("chart_spec", "")
+                        })
+    
+    if content_items:
+        return {
+            "content": content_items,
+            "request_id": request_id
+        }
+    
+    return None
 
 
 def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
@@ -796,6 +855,9 @@ def display_message(
             display_sql_query(
                 item["statement"], message_index, item["confidence"], request_id
             )
+        elif item["type"] == "chart":
+            # Display Vega-Lite chart from Cortex Agents
+            display_vega_chart(item["chart_spec"], message_index)
         else:
             # Handle other content types if necessary
             pass
@@ -915,6 +977,42 @@ def display_sql_query(
             
     if request_id:
         display_feedback_section(request_id)
+
+
+def display_vega_chart(chart_spec: str, message_index: int) -> None:
+    """
+    Display a Vega-Lite chart specification from Cortex Agents.
+    
+    Args:
+        chart_spec (str): JSON string containing Vega-Lite chart specification
+        message_index (int): The index of the message
+    """
+    try:
+        import json
+        chart_dict = json.loads(chart_spec)
+        st.vega_lite_chart(chart_dict, use_container_width=True)
+        
+        # Add option to open in Report Designer
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button(
+                "📊 Open in Report Designer",
+                key=f"open_designer_chart_{message_index}",
+                help="Customize this chart in the Report Designer"
+            ):
+                # Store the chart data for the Report Designer
+                st.session_state.chart_data = {
+                    "chart_spec": chart_dict,
+                    "chart_type": "vega_lite"
+                }
+                st.switch_page("pages/2_Report_Designer.py")
+                
+    except json.JSONDecodeError as e:
+        st.error(f"Failed to parse chart specification: {e}")
+        st.text("Raw chart spec:")
+        st.code(chart_spec)
+    except Exception as e:
+        st.error(f"Failed to display chart: {e}")
 
 
 def display_chart(df: pd.DataFrame, message_index: int) -> None:

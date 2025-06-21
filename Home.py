@@ -4,7 +4,7 @@ Text2SQL Interactive Charts
 This is the main landing page for the Text2SQL Interactive Charts application.
 
 The overall design of this solution is as follows:
-This Streamlit application has a home page (Home.py) and the user first goes to Cortex Analyst (1_Cortex_Analyst.py) page and asks a question.
+This Streamlit application has a home page (Home.py) and the user first goes to Cortex Agents (1_Cortex_Agents.py) page and asks a question.
 This Text2SQL chatbot page returns a SQL Statement and a table with data in it.  
 Based on the columns in that table, this chatbot then automatically places an appropriate chart under the table. 
 A user can then click "Open in Designer" and that opens the same SQL, table, and chart in the Report Designer ( 2_Report_Designer.py)

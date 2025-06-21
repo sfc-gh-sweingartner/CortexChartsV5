@@ -657,30 +657,32 @@ def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
         error_msg = "⚠️ Please select at least one semantic model before asking questions."
         return {}, error_msg
     
-    # Prepare semantic models array for the request
-    semantic_models = []
-    for model_path in st.session_state.selected_semantic_models:
-        semantic_models.append({
-            "semantic_model_file": f"@{model_path}"
+    # Create a separate tool for each semantic model
+    tools = []
+    tool_resources = {}
+    
+    for i, model_path in enumerate(st.session_state.selected_semantic_models):
+        tool_name = f"data_model_{i+1}"
+        
+        # Add tool specification
+        tools.append({
+            "tool_spec": {
+                "name": tool_name,
+                "type": "cortex_analyst_text_to_sql"
+            }
         })
+        
+        # Add tool resource with single semantic model
+        tool_resources[tool_name] = {
+            "semantic_model_file": f"@{model_path}"
+        }
     
     # Prepare the request body for Cortex Agents API
     request_body = {
         "model": DEFAULT_AGENT_MODEL,
         "messages": messages,
-        "tools": [
-            {
-                "tool_spec": {
-                    "name": "data_model",
-                    "type": "cortex_analyst_text_to_sql"
-                }
-            }
-        ],
-        "tool_resources": {
-            "data_model": {
-                "semantic_models": semantic_models
-            }
-        }
+        "tools": tools,
+        "tool_resources": tool_resources
     }
 
     # Send a POST request to the Cortex Agents API endpoint

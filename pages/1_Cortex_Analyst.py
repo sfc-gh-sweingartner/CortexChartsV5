@@ -39,8 +39,8 @@ from utils.chart_utils import (
 
 # Set page config
 st.set_page_config(
-    page_title="Cortex Analyst",
-    page_icon="❄️",
+    page_title="Cortex Agents",
+    page_icon="🤖",
     layout="wide",
 )
 
@@ -51,9 +51,14 @@ AVAILABLE_SEMANTIC_MODELS_PATHS = [
     "QUANTIUM_DEMO.TEXT2SQL.TEXT2SQL/fakesalesmap.yaml",
     "TELCO_NETWORK_OPTIMIZATION_PROD.RAW.DATA/telco_network_opt.yaml"
 ]
-API_ENDPOINT = "/api/v2/cortex/analyst/message"
-FEEDBACK_API_ENDPOINT = "/api/v2/cortex/analyst/feedback"
+
+# Cortex Agents API configuration
+API_ENDPOINT = "/api/v2/cortex/agent:run"
+FEEDBACK_API_ENDPOINT = "/api/v2/cortex/analyst/feedback"  # Keep existing feedback endpoint
 API_TIMEOUT = 50000  # in milliseconds
+
+# Cortex Agents default model
+DEFAULT_AGENT_MODEL = "llama3.1-70b"
 
 # Initialize a Snowpark session for executing queries
 session = get_active_session()
@@ -99,20 +104,35 @@ def reset_session_state():
 def show_header_and_sidebar():
     """Display the header and sidebar of the app."""
     # Set the title and introductory text of the app
-    st.title("Cortex Analyst")
+    st.title("Cortex Agents")
     st.markdown(
-        "Welcome to Cortex Analyst! Type your questions below to interact with your data. "
+        "Welcome to Cortex Agents! Type your questions below to interact with your data using advanced AI reasoning and multi-turn conversations. "
     )
 
     # Sidebar with a reset button and semantic model selector
     with st.sidebar:
-        selected_model = st.selectbox(
-            "Selected semantic model:",
-            AVAILABLE_SEMANTIC_MODELS_PATHS,
-            format_func=lambda s: s.split("/")[-1],
-            key="selected_semantic_model_path",
-            on_change=reset_session_state,
-        )
+        # Multiple semantic model selection
+        st.subheader("Semantic Models")
+        st.markdown("*Cortex Agents will automatically choose the most appropriate model for your query*")
+        
+        # Show available models with checkboxes
+        if "selected_semantic_models" not in st.session_state:
+            st.session_state.selected_semantic_models = AVAILABLE_SEMANTIC_MODELS_PATHS.copy()  # Default: all selected
+        
+        selected_models = []
+        for model_path in AVAILABLE_SEMANTIC_MODELS_PATHS:
+            model_name = model_path.split("/")[-1]
+            if st.checkbox(
+                model_name, 
+                value=model_path in st.session_state.selected_semantic_models,
+                key=f"model_checkbox_{model_path}"
+            ):
+                selected_models.append(model_path)
+        
+        st.session_state.selected_semantic_models = selected_models
+        
+        if not selected_models:
+            st.warning("⚠️ Please select at least one semantic model")
         
         st.divider()
         
@@ -127,8 +147,9 @@ def show_header_and_sidebar():
         
         st.divider()
         
-        # Display semantic model columns
-        display_semantic_model_columns(selected_model)
+        # Display semantic model columns (show for the first selected model for UI consistency)
+        if selected_models:
+            display_semantic_model_columns(selected_models[0])
         
         st.divider()
         
@@ -525,7 +546,7 @@ def handle_user_inputs():
 
 def handle_error_notifications():
     if st.session_state.get("fire_API_error_notify"):
-        st.toast("An API error has occured!", icon="🚨")
+        st.toast("A Cortex Agents API error has occurred!", icon="🚨")
         st.session_state["fire_API_error_notify"] = False
 
 
@@ -539,7 +560,7 @@ def process_user_input(prompt: str):
     # Clear previous warnings at the start of a new request
     st.session_state.warnings = []
 
-    # Create a new message, append to history and display imidiately
+    # Create a new message, append to history and display immediately
     new_user_message = {
         "role": "user",
         "content": [{"type": "text", "text": prompt}],
@@ -549,29 +570,66 @@ def process_user_input(prompt: str):
         user_msg_index = len(st.session_state.messages) - 1
         display_message(new_user_message["content"], user_msg_index)
 
-    # Show progress indicator inside analyst chat message while waiting for response
-    with st.chat_message("analyst"):
-        with st.spinner("Waiting for Analyst's response..."):
+    # Show progress indicator inside assistant chat message while waiting for response
+    with st.chat_message("assistant"):
+        with st.spinner("Waiting for Cortex Agents response..."):
             time.sleep(1)
             response, error_msg = get_analyst_response(st.session_state.messages)
+            
             if error_msg is None:
-                analyst_message = {
-                    "role": "analyst",
-                    "content": response["message"]["content"],
-                    "request_id": response["request_id"],
-                }
+                # Handle Cortex Agents response format
+                # The response structure might be different from Cortex Analyst
+                if "message" in response and "content" in response["message"]:
+                    # Standard Cortex Analyst format (might still be used by Agents)
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": response["message"]["content"],
+                        "request_id": response.get("request_id", "unknown"),
+                    }
+                elif "content" in response and isinstance(response["content"], list):
+                    # Direct content format
+                    assistant_message = {
+                        "role": "assistant", 
+                        "content": response["content"],
+                        "request_id": response.get("request_id", "unknown"),
+                    }
+                elif "choices" in response and len(response["choices"]) > 0:
+                    # OpenAI-style format that Agents might use
+                    choice = response["choices"][0]
+                    if "message" in choice:
+                        assistant_message = {
+                            "role": "assistant",
+                            "content": choice["message"].get("content", []),
+                            "request_id": response.get("id", "unknown"),
+                        }
+                    else:
+                        # Fallback - try to extract content from the choice
+                        assistant_message = {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": str(choice)}],
+                            "request_id": response.get("id", "unknown"),
+                        }
+                else:
+                    # Fallback for unexpected format
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": f"Received response in unexpected format:\n\n{json.dumps(response, indent=2)}"}],
+                        "request_id": response.get("request_id", response.get("id", "unknown")),
+                    }
             else:
-                analyst_message = {
-                    "role": "analyst",
+                # Handle error case
+                assistant_message = {
+                    "role": "assistant",
                     "content": [{"type": "text", "text": error_msg}],
-                    "request_id": response["request_id"],
+                    "request_id": response.get("request_id", response.get("id", "unknown")),
                 }
                 st.session_state["fire_API_error_notify"] = True
 
-            # if "warnings" in response:
-            #     st.session_state.warnings = response["warnings"]
+            # Store warnings if they exist in the response
+            if "warnings" in response:
+                st.session_state.warnings = response["warnings"]
 
-            st.session_state.messages.append(analyst_message)
+            st.session_state.messages.append(assistant_message)
             st.rerun()
 
 
@@ -586,22 +644,46 @@ def display_warnings():
 
 def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
     """
-    Send chat history to the Cortex Analyst API and return the response.
+    Send chat history to the Cortex Agents API and return the response.
 
     Args:
         messages (List[Dict]): The conversation history.
 
     Returns:
-        Optional[Dict]: The response from the Cortex Analyst API.
+        Tuple[Dict, Optional[str]]: The response from the Cortex Agents API and error message if any.
     """
-    # Prepare the request body with the user's prompt
+    # Ensure we have selected semantic models
+    if not st.session_state.selected_semantic_models:
+        error_msg = "⚠️ Please select at least one semantic model before asking questions."
+        return {}, error_msg
+    
+    # Prepare semantic models array for the request
+    semantic_models = []
+    for model_path in st.session_state.selected_semantic_models:
+        semantic_models.append({
+            "semantic_model_file": f"@{model_path}"
+        })
+    
+    # Prepare the request body for Cortex Agents API
     request_body = {
+        "model": DEFAULT_AGENT_MODEL,
         "messages": messages,
-        "semantic_model_file": f"@{st.session_state.selected_semantic_model_path}",
+        "tools": [
+            {
+                "tool_spec": {
+                    "name": "data_model",
+                    "type": "cortex_analyst_text_to_sql"
+                }
+            }
+        ],
+        "tool_resources": {
+            "data_model": {
+                "semantic_models": semantic_models
+            }
+        }
     }
 
-    # Send a POST request to the Cortex Analyst API endpoint
-    # Adjusted to use positional arguments as per the API's requirement
+    # Send a POST request to the Cortex Agents API endpoint
     resp = _snowflake.send_snow_api_request(
         "POST",  # method
         API_ENDPOINT,  # path
@@ -613,24 +695,39 @@ def get_analyst_response(messages: List[Dict]) -> Tuple[Dict, Optional[str]]:
     )
 
     # Content is a string with serialized JSON object
-    parsed_content = json.loads(resp["content"])
+    try:
+        parsed_content = json.loads(resp["content"])
+    except json.JSONDecodeError as e:
+        error_msg = f"""
+🚨 Failed to parse API response 🚨
+
+* response code: `{resp['status']}`
+* JSON decode error: `{str(e)}`
+* raw content: `{resp['content'][:500]}...`
+        """
+        return {}, error_msg
 
     # Check if the response is successful
     if resp["status"] < 400:
-        # Return the content of the response as a JSON object
+        # For Cortex Agents, we need to extract the response from the streaming format
+        # or handle the direct response format
         return parsed_content, None
     else:
         # Craft readable error message
+        request_id = parsed_content.get("request_id", "unknown")
+        error_code = parsed_content.get("error_code", "unknown")
+        message = parsed_content.get("message", "Unknown error")
+        
         error_msg = f"""
-🚨 An Analyst API error has occurred 🚨
+🚨 A Cortex Agents API error has occurred 🚨
 
 * response code: `{resp['status']}`
-* request-id: `{parsed_content['request_id']}`
-* error code: `{parsed_content['error_code']}`
+* request-id: `{request_id}`
+* error code: `{error_code}`
 
 Message:
 ```
-{parsed_content['message']}
+{message}
 ```
         """
         return parsed_content, error_msg
@@ -644,8 +741,8 @@ def display_conversation():
         role = message["role"]
         content = message["content"]
         with st.chat_message(role):
-            if role == "analyst":
-                display_message(content, idx, message["request_id"])
+            if role in ["analyst", "assistant"]:  # Handle both old and new role names
+                display_message(content, idx, message.get("request_id"))
             else:
                 display_message(content, idx)
 

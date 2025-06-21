@@ -1010,41 +1010,7 @@ def display_vega_chart(chart_spec: str, message_index: int) -> None:
                     st.session_state.report_transfer = {}
                 
                 # Extract SQL and prompt from message history
-                sql_statement = ""
-                prompt = ""
-                
-                # Debug: Show message structure
-                st.write("Debug - Message History:")
-                for i, message in enumerate(st.session_state.messages):
-                    st.write(f"Message {i}: Role = {message['role']}")
-                    if "content" in message:
-                        for j, item in enumerate(message["content"]):
-                            st.write(f"  Content {j}: Type = {item.get('type', 'unknown')}")
-                            if item.get("type") == "sql":
-                                st.write(f"    SQL Preview: {item.get('statement', '')[:100]}...")
-                
-                # Look for SQL in the most recent assistant message
-                for message in reversed(st.session_state.messages):
-                    if message["role"] in ["analyst", "assistant"]:
-                        for item in message["content"]:
-                            if item["type"] == "sql":
-                                sql_statement = item["statement"]
-                                break
-                        if sql_statement:
-                            break
-                
-                # Look for prompt in the most recent user message
-                for message in reversed(st.session_state.messages):
-                    if message["role"] == "user":
-                        for item in message["content"]:
-                            if item["type"] == "text":
-                                prompt = item["text"]
-                                break
-                        if prompt:
-                            break
-                
-                st.write(f"Debug - Extracted SQL: {sql_statement[:100] if sql_statement else 'EMPTY'}...")
-                st.write(f"Debug - Extracted Prompt: {prompt[:100] if prompt else 'EMPTY'}...")
+                sql_statement, prompt = extract_sql_and_prompt_from_messages()
                 
                 # Create a simple chart code that displays the Vega-Lite chart
                 chart_code = f"""import streamlit as st
@@ -1078,6 +1044,34 @@ def create_chart(df):
         st.code(chart_spec)
     except Exception as e:
         st.error(f"Failed to display chart: {e}")
+
+
+def extract_sql_and_prompt_from_messages() -> tuple[str, str]:
+    """Extract SQL statement and prompt from the message history."""
+    sql_statement = ""
+    prompt = ""
+    
+    # Look for SQL in the most recent assistant message
+    for message in reversed(st.session_state.messages):
+        if message["role"] in ["analyst", "assistant"]:
+            for item in message["content"]:
+                if item["type"] == "sql":
+                    sql_statement = item["statement"]
+                    break
+            if sql_statement:
+                break
+    
+    # Look for prompt in the most recent user message
+    for message in reversed(st.session_state.messages):
+        if message["role"] == "user":
+            for item in message["content"]:
+                if item["type"] == "text":
+                    prompt = item["text"]
+                    break
+            if prompt:
+                break
+    
+    return sql_statement, prompt
 
 
 def display_chart(df: pd.DataFrame, message_index: int) -> None:
@@ -1382,17 +1376,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                         st.session_state.map_transfer = {}
                     
                     # Extract SQL and prompt
-                    sql_statement = ""
-                    prompt = ""
-                    for message in st.session_state.messages:
-                        if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "sql":
-                                    sql_statement = item["statement"]
-                        elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "text":
-                                    prompt = item["text"]
+                    sql_statement, prompt = extract_sql_and_prompt_from_messages()
                     
                     # Generate chart code
                     from utils.chart_utils import generate_chart_code_for_dataframe
@@ -1419,17 +1403,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                         st.session_state.report_transfer = {}
                     
                     # Extract SQL and prompt
-                    sql_statement = ""
-                    prompt = ""
-                    for message in st.session_state.messages:
-                        if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "sql":
-                                    sql_statement = item["statement"]
-                        elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "text":
-                                    prompt = item["text"]
+                    sql_statement, prompt = extract_sql_and_prompt_from_messages()
                     
                     # Generate chart code
                     from utils.chart_utils import generate_chart_code_for_dataframe
@@ -1456,17 +1430,7 @@ def display_chart(df: pd.DataFrame, message_index: int) -> None:
                         st.session_state.report_transfer = {}
                     
                     # Extract SQL and prompt
-                    sql_statement = ""
-                    prompt = ""
-                    for message in st.session_state.messages:
-                        if message["role"] == "analyst" and len(st.session_state.messages) - 1 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "sql":
-                                    sql_statement = item["statement"]
-                        elif message["role"] == "user" and len(st.session_state.messages) - 2 == st.session_state.messages.index(message):
-                            for item in message["content"]:
-                                if item["type"] == "text":
-                                    prompt = item["text"]
+                    sql_statement, prompt = extract_sql_and_prompt_from_messages()
                     
                     # Generate chart code
                     from utils.chart_utils import generate_chart_code_for_dataframe

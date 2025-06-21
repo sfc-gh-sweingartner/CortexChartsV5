@@ -891,19 +891,25 @@ def display_sql_confidence(confidence: dict):
         help="The verified query from [Verified Query Repository](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst/verified-query-repository), used to generate the SQL",
     ):
         with st.container():
-            if verified_query_used is None:
+            # Handle both None and False (boolean) cases
+            if verified_query_used is None or verified_query_used is False or not verified_query_used:
                 st.text(
                     "There is no query from the Verified Query Repository used to generate this SQL answer"
                 )
                 return
-            st.text(f"Name: {verified_query_used['name']}")
-            st.text(f"Question: {verified_query_used['question']}")
-            st.text(f"Verified by: {verified_query_used['verified_by']}")
-            st.text(
-                f"Verified at: {datetime.fromtimestamp(verified_query_used['verified_at'])}"
-            )
-            st.text("SQL query:")
-            st.code(verified_query_used["sql"], language="sql", wrap_lines=True)
+            
+            # Only try to access dictionary keys if verified_query_used is a dictionary
+            if isinstance(verified_query_used, dict):
+                st.text(f"Name: {verified_query_used['name']}")
+                st.text(f"Question: {verified_query_used['question']}")
+                st.text(f"Verified by: {verified_query_used['verified_by']}")
+                st.text(
+                    f"Verified at: {datetime.fromtimestamp(verified_query_used['verified_at'])}"
+                )
+                st.text("SQL query:")
+                st.code(verified_query_used["sql"], language="sql", wrap_lines=True)
+            else:
+                st.text(f"Verified query status: {verified_query_used}")
 
 
 def display_sql_query(

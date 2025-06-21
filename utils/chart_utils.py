@@ -1652,9 +1652,7 @@ def create_chart11(df, cols):
             try:
                 if value_col in df_copy.columns:
                     df_copy[value_col] = pd.to_numeric(df_copy[value_col], errors='coerce')
-                    nan_count = df_copy[value_col].isna().sum()
-                    if nan_count > 0:
-                        st.warning(f"Column {value_col} has {nan_count} NaN values after conversion")
+                    # Note: NaN values after conversion are handled silently
                 else:
                     st.error(f"Selected value column '{value_col}' not found in dataframe")
                     value_cols.remove(value_col)
